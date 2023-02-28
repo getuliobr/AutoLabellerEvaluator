@@ -1,0 +1,7 @@
+[GITHUB]
+PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----
+ example
+ example
+ -----END RSA PRIVATE KEY-----
+APP_IDENTIFIER=example
+WEBHOOK_SECRET=example
