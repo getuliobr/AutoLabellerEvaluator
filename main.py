@@ -1,3 +1,4 @@
+import csv
 import re
 from string import digits
 from tkinter import *
@@ -10,8 +11,14 @@ from compareAlgorithms.sbert import *
 from compareAlgorithms.tfidf import *
 from compareAlgorithms.word2vec import *
 
+from precision.average_precision import mapk, apk
+
 from getSolvedIssueData import getSolvedIssues
 import threading
+import datetime
+
+DELIMITER = ';'
+QUOTE = "'"
 
 class EvalutorWindow:
     def __init__(self, win):
@@ -158,27 +165,45 @@ class EvalutorWindow:
         # if useLemmatization:
         #     corpus = lemmatizatizeCorpus(corpus)
 
+        now = datetime.datetime.now()
+        filename = now.strftime("%Y-%m-%d-%H-%M-%S") + ".csv"
+        f = open(f'./out/{filename}', 'w+', encoding="utf-8", newline='')
+
+        writer = csv.writer(f, delimiter=DELIMITER, quotechar=QUOTE, quoting=csv.QUOTE_ALL)
+        
+        header = ['owner/repo', 'k', 'strategy', 'compare', 'lowercase', 'removeLinks', 'removeDigits', 'removeStopWords', 'lemmatization']
+        writer.writerow(header)
+        writer.writerow([f'{owner}/{repo}', k, self.strategy.get(), compareData, setLowercase, removeLinks, removeDigits, removeStopWords, useLemmatization])
+
+        issueHeader = ['issue', 'mapk']
+        for i in range(k):
+            issueHeader.extend([f'sugestion{i + 1}',f'similarity{i + 1}',f'apk{i + 1}'])	
+        writer.writerow(issueHeader)
+
         for j, issue in enumerate(corpus.keys()):
             self.pbLabel.config(text=f'Calculating similarities: {j + 1}/{len(corpus.keys())} ')
             self.pb['value'] = (j + 1) / len(corpus.keys()) * 100
-            files = []
 
             sb = strategy(list(corpus.keys()), issue)
             ordered = sorted(sb, key=lambda x: x[1], reverse=True)
             useK = min(k, len(ordered))
+            currRow = [issue, 0]
+
+            currSolvedBy = corpus[issue]
+            apkArr = []
+
             for i in range(useK):
-                files.extend(corpus[ordered[i][0]])
+                currSugestion = ordered[i][0]
+                currSugestionSimilarity = ordered[i][1]
+                currSugestionFiles = corpus[currSugestion]
+                currApk = apk(currSolvedBy, currSugestionFiles, k)
+                apkArr.append(currApk)
+                currRow.extend([currSugestion, currSugestionSimilarity, currApk])
 
-            print(files)
-
-            # corpus[last] = issue
-            # arr = lemmatization(corpus)
-            # for i in range(topK):
-            #   result_idx = np.nanargmax(arr[last])
-            #   arr[last][result_idx] = -1
-            #   files.extend(prs[list(prs.keys())[result_idx]])
-            
-
+            currRow[1] = np.mean(apkArr)
+            writer.writerow(currRow)
+        
+        f.close()
         self.submitButton.config(state=NORMAL)
 
 
