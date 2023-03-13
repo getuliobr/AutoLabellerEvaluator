@@ -196,7 +196,7 @@ class EvalutorWindow:
                 currSugestion = ordered[i][0]
                 currSugestionSimilarity = ordered[i][1]
                 currSugestionFiles = corpus[currSugestion]
-                currApk = apk(currSolvedBy, currSugestionFiles, k)
+                currApk = apk(currSolvedBy, currSugestionFiles, len(currSolvedBy))
                 apkArr.append(currApk)
                 currRow.extend([currSugestion, currSugestionSimilarity, currApk])
 
