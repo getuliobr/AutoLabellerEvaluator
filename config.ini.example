@@ -5,3 +5,7 @@ PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----
  -----END RSA PRIVATE KEY-----
 APP_IDENTIFIER=example
 WEBHOOK_SECRET=example
+
+[DATABASE]
+CONNECTION_STRING=mongodb://localhost:27017/
+NAME=evaluator

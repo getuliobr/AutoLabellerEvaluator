@@ -5,17 +5,22 @@ import requests
 
 from octokit import Octokit
 
+from pymongo.collection import Collection
+
 from config import config
 import re
 
-def getSolvedIssues(owner, repo, pb, label):
+def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
   octokit = Octokit(auth='installation', app_id=config['GITHUB']['APP_IDENTIFIER'], private_key=config['GITHUB']['PRIVATE_KEY'])
 
-  data = octokit.search.issues_and_pull_requests(q=f'repo:{owner}/{repo} state:closed linked:pr is:issue', per_page=100).json
+  data = octokit.search.issues_and_pull_requests(q=f'repo:{owner}/{repo} state:closed linked:pr is:issue sort:created', per_page=100).json
   issuesList = data['items']
   total = data['total_count']
+  total_saved = dbCollection.count_documents({})
   label.config(text=f"Total issues: {total}")
-  
+  if total_saved == total:
+    return
+  lastIssue = dbCollection.find_one(sort=[('number', -1)])
   page = 2
   while len(issuesList) != total:
     pb['value'] = len(issuesList)/total * 100
@@ -26,7 +31,6 @@ def getSolvedIssues(owner, repo, pb, label):
       page += 1
     except:
       break
-
   filesThatSolveIssue = {}
 
   label.config(text=f"Fetching issue data")
@@ -41,7 +45,6 @@ def getSolvedIssues(owner, repo, pb, label):
     issueForm = soup.find("form", { "aria-label": re.compile('Link issues')})
 
     linkedMergedPR = [f"https://github.com{i.parent['href']}" for i in issueForm.find_all('svg', attrs={ "aria-label": re.compile('Merged Pull Request')})]
-
     filesSolvingThisIssue = []
 
     for pr in linkedMergedPR:
@@ -57,9 +60,12 @@ def getSolvedIssues(owner, repo, pb, label):
         filesInThisPR.extend(list(map(lambda x: x['filename'], files)))
       filesSolvingThisIssue.extend(filesInThisPR)
     
-    filesThatSolveIssue[issue['title']] = {
+    dbCollection.update_one({
+      'number': issue['number']
+    },{
+      'title': issue['title'],
       'body': issue['body'],
-      'files': filesSolvingThisIssue
-    }
-
-  return filesThatSolveIssue
+      'number': issue['number'],
+      'files': filesSolvingThisIssue,
+      'closed_at': issue['closed_at'],
+    }, upsert=True)
