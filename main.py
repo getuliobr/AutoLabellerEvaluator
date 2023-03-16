@@ -17,6 +17,9 @@ from getSolvedIssueData import getSolvedIssues
 import threading
 import datetime
 
+import pymongo
+from config import config
+
 DELIMITER = ';'
 QUOTE = "'"
 
@@ -33,6 +36,9 @@ class EvalutorWindow:
             'body',
             'title + body'
         ]
+
+        self.mongoClient = pymongo.MongoClient(config['DATABASE']['CONNECTION_STRING'])
+        self.db = self.mongoClient[config['DATABASE']['NAME']]
 
         self.issues = None
         self.lastRepo = None
@@ -110,9 +116,9 @@ class EvalutorWindow:
         self.pb.place(x=300, y=510, anchor=CENTER)
         
 
-
     def submit(self):
         self.submitButton.config(state=DISABLED)
+        self.collection = self.db[self.repoUrl.get()]
         self.thread = threading.Thread(target=self.runThread)
         self.thread.start()        
 
@@ -130,8 +136,11 @@ class EvalutorWindow:
         if self.lastRepo != self.repoUrl.get():
             self.issues = None
             self.lastRepo = self.repoUrl.get()
-        issues = getSolvedIssues(owner, repo, self.pb, self.pbLabel) if self.issues == None else self.issues
-        self.issues = issues
+        
+        getSolvedIssues(owner, repo, self.pb, self.pbLabel, self.collection)
+
+        issues = self.collection.find()
+        issues = {issue['title']: issue for issue in issues}
 
         corpus = {}
         for title in issues:
