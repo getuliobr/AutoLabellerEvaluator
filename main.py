@@ -183,7 +183,13 @@ class EvalutorWindow:
         header = ['owner/repo', 'k', 'strategy', 'compare', 'lowercase', 'removeLinks', 'removeDigits', 'removeStopWords', 'lemmatization']
         writer.writerow(header)
         writer.writerow([f'{owner}/{repo}', k, self.strategy.get(), compareData, setLowercase, removeLinks, removeDigits, removeStopWords, useLemmatization])
+        
+        self.calculateSimilarities(writer, corpus, strategy, k)
+        
+        f.close()
+        self.submitButton.config(state=NORMAL)
 
+    def calculateSimilarities(self, writer, corpus, strategy, k):
         issueHeader = ['issue', 'mapk']
         for i in range(k):
             issueHeader.extend([f'sugestion{i + 1}',f'similarity{i + 1}',f'apk{i + 1}'])	
@@ -211,9 +217,6 @@ class EvalutorWindow:
 
             currRow[1] = np.mean(apkArr)
             writer.writerow(currRow)
-        
-        f.close()
-        self.submitButton.config(state=NORMAL)
 
 
 window=Tk()
