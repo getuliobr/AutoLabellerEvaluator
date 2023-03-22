@@ -62,10 +62,10 @@ def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
     
     dbCollection.update_one({
       'number': issue['number']
-    },{
+    },{"$set": {
       'title': issue['title'],
       'body': issue['body'],
       'number': issue['number'],
       'files': filesSolvingThisIssue,
       'closed_at': issue['closed_at'],
-    }, upsert=True)
+    }}, upsert=True)

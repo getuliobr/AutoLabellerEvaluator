@@ -138,42 +138,7 @@ class EvalutorWindow:
             self.lastRepo = self.repoUrl.get()
         
         getSolvedIssues(owner, repo, self.pb, self.pbLabel, self.collection)
-
-        issues = self.collection.find()
-        issues = {issue['title']: issue for issue in issues}
-
-        corpus = {}
-        for title in issues:
-            issue = issues[title]
-            data = ''
-            if compareData == 'title':
-                data = title
-            elif compareData == 'body':
-                data = issue['body']
-            else:
-                data = f"{title} {issue['body'] if issue['body'] != None else ''}"
-
-            if data == None:
-                data = ''
-
-            if setLowercase:
-                data = data.lower()
-            if removeLinks:
-                data = re.sub(r'http\S+', '', data)
-            if removeDigits:
-                remove_digits = str.maketrans('', '', digits)
-                data = data.translate(remove_digits)
-            if removeStopWords:
-                stop_words = set(stopwords.words('english'))
-                word_tokens = word_tokenize(data)
-                data = [w for w in word_tokens if not w in stop_words]
-                data = ' '.join(data)
-
-            corpus[data] = issue['files']
         
-        # if useLemmatization:
-        #     corpus = lemmatizatizeCorpus(corpus)
-
         now = datetime.datetime.now()
         filename = now.strftime("%Y-%m-%d-%H-%M-%S") + ".csv"
         f = open(f'./out/{filename}', 'w+', encoding="utf-8", newline='')
@@ -183,40 +148,91 @@ class EvalutorWindow:
         header = ['owner/repo', 'k', 'strategy', 'compare', 'lowercase', 'removeLinks', 'removeDigits', 'removeStopWords', 'lemmatization']
         writer.writerow(header)
         writer.writerow([f'{owner}/{repo}', k, self.strategy.get(), compareData, setLowercase, removeLinks, removeDigits, removeStopWords, useLemmatization])
-        
-        self.calculateSimilarities(writer, corpus, strategy, k)
-        
-        f.close()
-        self.submitButton.config(state=NORMAL)
 
-    def calculateSimilarities(self, writer, corpus, strategy, k):
         issueHeader = ['issue', 'mapk']
         for i in range(k):
             issueHeader.extend([f'sugestion{i + 1}',f'similarity{i + 1}',f'apk{i + 1}'])	
         writer.writerow(issueHeader)
 
-        for j, issue in enumerate(corpus.keys()):
-            self.pbLabel.config(text=f'Calculating similarities: {j + 1}/{len(corpus.keys())} ')
-            self.pb['value'] = (j + 1) / len(corpus.keys()) * 100
+        allIssues = self.collection.find({}).sort('closed_at', pymongo.ASCENDING)
+        self.calculated = 1 # Começa em um porque a primeira issue não tem issues para comparar
+        self.total = self.collection.count_documents({})
+        for issue in allIssues:
+            issuesClosedBefore = self.collection.find(
+                {'closed_at': {
+                    '$lte': issue['closed_at']
+                    }
+                }).sort('closed_at', pymongo.DESCENDING) # Vai pegando as issues mais velhas para mais novas e para garantir que o primeira é a mais nova ordena
+            
+            issues = {issue['title']: issue for issue in issuesClosedBefore}
+            if len(issues) == 1:
+                continue # Não tem issues para comparar
 
-            sb = strategy(list(corpus.keys()), issue)
-            ordered = sorted(sb, key=lambda x: x[1], reverse=True)
-            useK = min(k, len(ordered))
-            currRow = [issue, 0]
+            corpus = {}
+            for title in issues:
+                issue = issues[title]
+                data = ''
+                if compareData == 'title':
+                    data = title
+                elif compareData == 'body':
+                    data = issue['body']
+                else:
+                    data = f"{title} {issue['body'] if issue['body'] != None else ''}"
 
-            currSolvedBy = corpus[issue]
-            apkArr = []
+                if data == None:
+                    data = ''
 
-            for i in range(useK):
-                currSugestion = ordered[i][0]
-                currSugestionSimilarity = ordered[i][1]
-                currSugestionFiles = corpus[currSugestion]
-                currApk = apk(currSolvedBy, currSugestionFiles, len(currSolvedBy))
-                apkArr.append(currApk)
-                currRow.extend([currSugestion, currSugestionSimilarity, currApk])
+                if setLowercase:
+                    data = data.lower()
+                
+                if removeLinks:
+                    data = re.sub(r'http\S+', '', data)
+                
+                if removeDigits:
+                    remove_digits = str.maketrans('', '', digits)
+                    data = data.translate(remove_digits)
+                
+                if removeStopWords:
+                    stop_words = set(stopwords.words('english'))
+                    word_tokens = word_tokenize(data)
+                    data = [w for w in word_tokens if not w in stop_words]
+                    data = ' '.join(data)
+                
+                # if useLemmatization:
+                #     data = lemmatizatizeCorpus(data)
+                corpus[data] = issue
+            
+            
+            self.calculateSimilarities(writer, corpus, strategy, k)
+        
+        f.close()
+        self.submitButton.config(state=NORMAL)
 
-            currRow[1] = np.mean(apkArr)
-            writer.writerow(currRow)
+    def calculateSimilarities(self, writer, corpus, strategy, k):
+        self.calculated += 1
+        self.pbLabel.config(text=f'Calculating similarities: {self.calculated}/{self.total} ')
+        self.pb['value'] = self.calculated / self.total * 100
+
+        currIssue = list(corpus.keys())[0]
+
+        sb = strategy(list(corpus.keys()), currIssue)
+        ordered = sorted(sb, key=lambda x: x[1], reverse=True)
+        useK = min(k, len(ordered))
+        currRow = [f"{corpus[currIssue]['title']} - {corpus[currIssue]['number']}", 0]
+
+        currSolvedBy = corpus[currIssue]['files']
+        apkArr = []
+
+        for i in range(useK):
+            currSugestion = ordered[i][0]
+            currSugestionSimilarity = ordered[i][1]
+            currSugestionFiles = corpus[currSugestion]['files']
+            currApk = apk(currSolvedBy, currSugestionFiles, len(currSolvedBy))
+            apkArr.append(currApk)
+            currRow.extend([f"{corpus[currSugestion]['title']} - {corpus[currSugestion]['number']}", currSugestionSimilarity, currApk])
+
+        currRow[1] = np.mean(apkArr)
+        writer.writerow(currRow)
 
 
 window=Tk()
