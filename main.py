@@ -236,6 +236,7 @@ class EvalutorWindow:
             'arquivos': len(currSolvedBy),
             'topk': useK,
             'tecnica': self.strategy.get(),
+            'compare': self.compare.get(),
             'filtros': {
                 'lowercase': self.lowercase.get(),
                 'removeLinks': self.links.get(),
@@ -252,6 +253,8 @@ class EvalutorWindow:
             'arquivos_resolvidos_de_verdade': currSolvedBy,
             'arquivos_sugestoes': []
         }
+
+        print(output)
 
         for i in range(useK):
             currSugestion = ordered[i][0]
