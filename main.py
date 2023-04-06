@@ -223,6 +223,36 @@ class EvalutorWindow:
         currSolvedBy = corpus[currIssue]['files']
         apkArr = []
 
+        '''
+        data|repositorio|issue|#arquivos|topk|tecnica|mapk|min_sim|max_sim|mediana_sim|#acertos|#erros|arquivos_resolvidos_de_verdade|arquivos_sugestoes
+        
+        ultimas 3000 issues
+        '''
+
+        output = {
+            'data': corpus[currIssue]['closed_at'],
+            'repositorio': self.repoUrl.get(),
+            'issue': f"{corpus[currIssue]['title']} - {corpus[currIssue]['number']}",
+            'arquivos': len(currSolvedBy),
+            'topk': useK,
+            'tecnica': self.strategy.get(),
+            'filtros': {
+                'lowercase': self.lowercase.get(),
+                'removeLinks': self.links.get(),
+                'removeDigits': self.digits.get(),
+                'removeStopWords': self.stopWords.get(),
+                'lemmatization': self.lemmatization.get()
+            },
+            'mapk': 0,
+            'min_sim': 0,
+            'max_sim': 0,
+            'mediana_sim': 0,
+            'acertos': 0,
+            'erros': 0,
+            'arquivos_resolvidos_de_verdade': currSolvedBy,
+            'arquivos_sugestoes': []
+        }
+
         for i in range(useK):
             currSugestion = ordered[i][0]
             currSugestionSimilarity = ordered[i][1]
