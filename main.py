@@ -17,6 +17,8 @@ from getSolvedIssueData import getSolvedIssues
 import threading
 import datetime
 
+from collections import OrderedDict
+
 import pymongo
 from config import config
 
@@ -119,9 +121,10 @@ class EvalutorWindow:
     def submit(self):
         self.submitButton.config(state=DISABLED)
         self.collection = self.db[self.repoUrl.get()]
+        self.outCollection = self.db[self.repoUrl.get() + '_results']
         self.thread = threading.Thread(target=self.runThread)
-        self.thread.start()        
-
+        self.thread.start()
+        
     def runThread(self):
         owner, repo = self.repoUrl.get().split('/')
         setLowercase = self.lowercase.get()
@@ -139,20 +142,22 @@ class EvalutorWindow:
         
         getSolvedIssues(owner, repo, self.pb, self.pbLabel, self.collection)
         
-        now = datetime.datetime.now()
-        filename = now.strftime("%Y-%m-%d-%H-%M-%S") + ".csv"
-        f = open(f'./out/{filename}', 'w+', encoding="utf-8", newline='')
 
-        writer = csv.writer(f, delimiter=DELIMITER, quotechar=QUOTE, quoting=csv.QUOTE_ALL)
+        # TODO: opção para escrever ou não em um csv, escolher o inicio e fim do intervalo de issues
+
+        # now = datetime.datetime.now()
+        # filename = now.strftime("%Y-%m-%d-%H-%M-%S") + ".csv"
+        # f = open(f'./out/{filename}', 'w+', encoding="utf-8", newline='')
+        # writer = csv.writer(f, delimiter=DELIMITER, quotechar=QUOTE, quoting=csv.QUOTE_ALL)
         
-        header = ['owner/repo', 'k', 'strategy', 'compare', 'lowercase', 'removeLinks', 'removeDigits', 'removeStopWords', 'lemmatization']
-        writer.writerow(header)
-        writer.writerow([f'{owner}/{repo}', k, self.strategy.get(), compareData, setLowercase, removeLinks, removeDigits, removeStopWords, useLemmatization])
+        # header = ['owner/repo', 'k', 'strategy', 'compare', 'lowercase', 'removeLinks', 'removeDigits', 'removeStopWords', 'lemmatization']
+        # writer.writerow(header)
+        # writer.writerow([f'{owner}/{repo}', k, self.strategy.get(), compareData, setLowercase, removeLinks, removeDigits, removeStopWords, useLemmatization])
 
-        issueHeader = ['issue', 'mapk']
-        for i in range(k):
-            issueHeader.extend([f'sugestion{i + 1}',f'similarity{i + 1}',f'apk{i + 1}'])	
-        writer.writerow(issueHeader)
+        # issueHeader = ['issue', 'mapk']
+        # for i in range(k):
+        #     issueHeader.extend([f'sugestion{i + 1}',f'similarity{i + 1}',f'apk{i + 1}'])	
+        # writer.writerow(issueHeader)
 
         allIssues = self.collection.find({}).sort('closed_at', pymongo.ASCENDING)
         self.calculated = 1 # Começa em um porque a primeira issue não tem issues para comparar
@@ -203,12 +208,12 @@ class EvalutorWindow:
                 corpus[data] = issue
             
             
-            self.calculateSimilarities(writer, corpus, strategy, k)
+            self.calculateSimilarities(corpus, strategy, k)
         
-        f.close()
+        # f.close()
         self.submitButton.config(state=NORMAL)
 
-    def calculateSimilarities(self, writer, corpus, strategy, k):
+    def calculateSimilarities(self, corpus, strategy, k, writer = None):
         self.calculated += 1
         self.pbLabel.config(text=f'Calculating similarities: {self.calculated}/{self.total} ')
         self.pb['value'] = self.calculated / self.total * 100
@@ -218,10 +223,9 @@ class EvalutorWindow:
         sb = strategy(list(corpus.keys()), currIssue)
         ordered = sorted(sb, key=lambda x: x[1], reverse=True)
         useK = min(k, len(ordered))
-        currRow = [f"{corpus[currIssue]['title']} - {corpus[currIssue]['number']}", 0]
+        # currRow = [f"{corpus[currIssue]['title']} - {corpus[currIssue]['number']}", 0]
 
         currSolvedBy = corpus[currIssue]['files']
-        apkArr = []
 
         '''
         data|repositorio|issue|#arquivos|topk|tecnica|mapk|min_sim|max_sim|mediana_sim|#acertos|#erros|arquivos_resolvidos_de_verdade|arquivos_sugestoes
@@ -244,28 +248,34 @@ class EvalutorWindow:
                 'removeStopWords': self.stopWords.get(),
                 'lemmatization': self.lemmatization.get()
             },
+            'arquivos_resolvidos_de_verdade': currSolvedBy,
             'mapk': 0,
-            'min_sim': 0,
-            'max_sim': 0,
-            'mediana_sim': 0,
+            'min_sim': ordered[-1][1],
+            'max_sim': ordered[0][1],
+            'mediana_sim': ordered[useK // 2][1],
             'acertos': 0,
             'erros': 0,
-            'arquivos_resolvidos_de_verdade': currSolvedBy,
-            'arquivos_sugestoes': []
+            'arquivos_sugeridos': []
         }
-
-        print(output)
-
+        
+        apkArr = []
         for i in range(useK):
             currSugestion = ordered[i][0]
-            currSugestionSimilarity = ordered[i][1]
             currSugestionFiles = corpus[currSugestion]['files']
+            output['arquivos_sugeridos'].extend(currSugestionFiles)
             currApk = apk(currSolvedBy, currSugestionFiles, len(currSolvedBy))
             apkArr.append(currApk)
-            currRow.extend([f"{corpus[currSugestion]['title']} - {corpus[currSugestion]['number']}", currSugestionSimilarity, currApk])
-
-        currRow[1] = np.mean(apkArr)
-        writer.writerow(currRow)
+            # currSugestionSimilarity = ordered[i][1]
+            # currRow.extend([f"{corpus[currSugestion]['title']} - {corpus[currSugestion]['number']}", currSugestionSimilarity, currApk])
+        
+        output['arquivos_sugeridos'] = list(OrderedDict.fromkeys(output['arquivos_sugeridos']))
+        output['acertos'] = len([x for x in output['arquivos_sugeridos'] if x in output['arquivos_resolvidos_de_verdade']])
+        output['erros'] = len(output['arquivos_sugeridos']) - output['acertos']
+        output['mapk'] = np.mean(apkArr)
+        self.outCollection.insert_one(output)
+        
+        # currRow[1] = np.mean(apkArr)
+        # writer.writerow(currRow)
 
 
 window=Tk()

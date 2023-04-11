@@ -18,6 +18,7 @@ def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
   total = data['total_count']
   total_saved = dbCollection.count_documents({})
   label.config(text=f"Total issues: {total}")
+  # TODO: fazer isso aqui funcionar bem e rapido
   if total_saved == total:
     return
   lastIssue = dbCollection.find_one(sort=[('number', -1)])
