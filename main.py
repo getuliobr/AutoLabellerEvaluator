@@ -17,6 +17,9 @@ from getSolvedIssueData import getSolvedIssues
 import threading
 import datetime
 
+from torch import Tensor
+
+
 from collections import OrderedDict
 
 import pymongo
@@ -24,6 +27,9 @@ from config import config
 
 DELIMITER = ';'
 QUOTE = "'"
+
+def getFloatFromValue(value):
+    return value if type(value) == float else value.item()
 
 class EvalutorWindow:
     def __init__(self, win):
@@ -140,7 +146,7 @@ class EvalutorWindow:
             self.issues = None
             self.lastRepo = self.repoUrl.get()
         
-        getSolvedIssues(owner, repo, self.pb, self.pbLabel, self.collection)
+        # getSolvedIssues(owner, repo, self.pb, self.pbLabel, self.collection)
         
 
         # TODO: opção para escrever ou não em um csv, escolher o inicio e fim do intervalo de issues
@@ -250,9 +256,9 @@ class EvalutorWindow:
             },
             'arquivos_resolvidos_de_verdade': currSolvedBy,
             'mapk': 0,
-            'min_sim': ordered[-1][1],
-            'max_sim': ordered[0][1],
-            'mediana_sim': ordered[useK // 2][1],
+            'min_sim': getFloatFromValue(ordered[-1][1]),
+            'max_sim': getFloatFromValue(ordered[0][1]),
+            'mediana_sim': getFloatFromValue(ordered[useK // 2][1]),
             'acertos': 0,
             'erros': 0,
             'arquivos_sugeridos': []
@@ -272,8 +278,23 @@ class EvalutorWindow:
         output['acertos'] = len([x for x in output['arquivos_sugeridos'] if x in output['arquivos_resolvidos_de_verdade']])
         output['erros'] = len(output['arquivos_sugeridos']) - output['acertos']
         output['mapk'] = np.mean(apkArr)
-        self.outCollection.insert_one(output)
-        
+        self.outCollection.update_one({
+                'issue': output['issue'],
+                'topk': output['topk'],
+                'tecnica': output['tecnica'],
+                'compare': output['compare'],
+                'filtros': {
+                    'lowercase': output['filtros']['lowercase'],
+                    'removeLinks': output['filtros']['removeLinks'],
+                    'removeDigits': output['filtros']['removeDigits'],
+                    'removeStopWords': output['filtros']['removeStopWords'],
+                    'lemmatization': output['filtros']['lemmatization']
+                },
+            },{
+                "$set": output
+            },
+            upsert=True
+        )
         # currRow[1] = np.mean(apkArr)
         # writer.writerow(currRow)
 
