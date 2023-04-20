@@ -242,7 +242,8 @@ class EvalutorWindow:
         output = {
             'data': corpus[currIssue]['closed_at'],
             'repositorio': self.repoUrl.get(),
-            'issue': f"{corpus[currIssue]['title']} - {corpus[currIssue]['number']}",
+            'issue': f"{corpus[currIssue]['title']}",
+            'number': corpus[currIssue]['number'],
             'arquivos': len(currSolvedBy),
             'topk': useK,
             'tecnica': self.strategy.get(),
@@ -279,7 +280,7 @@ class EvalutorWindow:
         output['erros'] = len(output['arquivos_sugeridos']) - output['acertos']
         output['mapk'] = np.mean(apkArr)
         self.outCollection.update_one({
-                'issue': output['issue'],
+                'number': output['number'],
                 'topk': output['topk'],
                 'tecnica': output['tecnica'],
                 'compare': output['compare'],
