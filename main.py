@@ -257,7 +257,7 @@ class EvalutorWindow:
             },
             'arquivos_resolvidos_de_verdade': currSolvedBy,
             'mapk': 0,
-            'min_sim': getFloatFromValue(ordered[-1][1]),
+            'min_sim': getFloatFromValue(ordered[useK - 1][1]),
             'max_sim': getFloatFromValue(ordered[0][1]),
             'mediana_sim': getFloatFromValue(ordered[useK // 2][1]),
             'acertos': 0,
