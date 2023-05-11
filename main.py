@@ -67,9 +67,17 @@ class EvalutorWindow:
 
         self.compare = StringVar()
         self.compare.set('title')
-        
         self.compareOptions = OptionMenu(win, self.compare, *self.dataOptions)
         self.compareOptions.place(x=300, y=100)
+        
+        self.useAPILabel = Label(win, text='Fetch from API')
+        self.useAPILabel.place(x=400, y=100)
+        self.useAPI = IntVar()
+        self.useAPI.set(1)
+        self.useAPICheck = Checkbutton(win, variable=self.useAPI)
+        self.useAPICheck.place(x=500, y=100)
+
+        
 
         self.lowercaseLabel = Label(win, text='Convert to lowercase')
         self.lowercaseLabel.place(x=100, y=150)
@@ -169,7 +177,8 @@ class EvalutorWindow:
             self.issues = None
             self.lastRepo = self.repoUrl.get()
         
-        getSolvedIssues(owner, repo, self.pb, self.pbLabel, self.collection)
+        if self.useAPI.get():
+            getSolvedIssues(owner, repo, self.pb, self.pbLabel, self.collection)
         
         # TODO: escolher o inicio e fim do intervalo de issues na interface
         query = {}
