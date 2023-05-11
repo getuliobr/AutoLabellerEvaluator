@@ -100,6 +100,29 @@ class EvalutorWindow:
         self.lemmatization = IntVar()
         self.lemmatizationCheck = Checkbutton(win, variable=self.lemmatization)
         self.lemmatizationCheck.place(x=300, y=350)
+        
+        self.removeTextFilesLabel = Label(win, text='Remove text files')
+        self.removeTextFilesLabel.place(x=350, y=150)
+        self.removeTextFiles = IntVar()
+        self.removeTextFilesCheck = Checkbutton(win, variable=self.removeTextFiles)
+        self.removeTextFilesCheck.place(x=550, y=150)
+
+        self.goodFirstIssueLabel = Label(win, text='Use good first issues only')
+        self.goodFirstIssueLabel.place(x=350, y=200)
+        self.goodFirstIssue = IntVar()
+        self.goodFirstIssueCheck = Checkbutton(win, variable=self.goodFirstIssue)
+        self.goodFirstIssueCheck.place(x=550, y=200)
+
+        self.goodFirstIssueTagNameLabel = Label(win, text='Good First Issue label')
+        self.goodFirstIssueTagNameLabel.place(x=350, y=250)
+        self.goodFirstIssueTagName = Entry(bd=3, width=15)
+        self.goodFirstIssueTagName.place(x=500, y=250)
+        self.goodFirstIssueTagName.insert(0, 'good first issue')
+
+        self.startIssueNumberLabel = Label(win, text='Start issue')
+        self.startIssueNumberLabel.place(x=350, y=300)
+        self.startIssueNumber = Entry(bd=3, width=15)
+        self.startIssueNumber.place(x=500, y=300)
 
         self.strategyLabel = Label(win, text='Strategy')
         self.strategyLabel.place(x=100, y=400)
@@ -146,28 +169,20 @@ class EvalutorWindow:
             self.issues = None
             self.lastRepo = self.repoUrl.get()
         
-        # getSolvedIssues(owner, repo, self.pb, self.pbLabel, self.collection)
+        getSolvedIssues(owner, repo, self.pb, self.pbLabel, self.collection)
         
-
-        # TODO: opção para escrever ou não em um csv, escolher o inicio e fim do intervalo de issues
-
-        # now = datetime.datetime.now()
-        # filename = now.strftime("%Y-%m-%d-%H-%M-%S") + ".csv"
-        # f = open(f'./out/{filename}', 'w+', encoding="utf-8", newline='')
-        # writer = csv.writer(f, delimiter=DELIMITER, quotechar=QUOTE, quoting=csv.QUOTE_ALL)
+        # TODO: escolher o inicio e fim do intervalo de issues na interface
+        query = {}
+        if self.goodFirstIssue.get():
+            query['labels'] = self.goodFirstIssueTagName.get()
+        if self.startIssueNumber.get() != '':
+            query['number'] = {
+                '$gte': int(self.startIssueNumber.get())
+            }
         
-        # header = ['owner/repo', 'k', 'strategy', 'compare', 'lowercase', 'removeLinks', 'removeDigits', 'removeStopWords', 'lemmatization']
-        # writer.writerow(header)
-        # writer.writerow([f'{owner}/{repo}', k, self.strategy.get(), compareData, setLowercase, removeLinks, removeDigits, removeStopWords, useLemmatization])
-
-        # issueHeader = ['issue', 'mapk']
-        # for i in range(k):
-        #     issueHeader.extend([f'sugestion{i + 1}',f'similarity{i + 1}',f'apk{i + 1}'])	
-        # writer.writerow(issueHeader)
-
-        allIssues = self.collection.find({}).sort('closed_at', pymongo.ASCENDING)
-        self.calculated = 1 # Começa em um porque a primeira issue não tem issues para comparar
-        self.total = self.collection.count_documents({})
+        allIssues = self.collection.find(query).sort('closed_at', pymongo.ASCENDING)
+        self.calculated = 0 # Começa em um porque a primeira issue não tem issues para comparar
+        self.total = self.collection.count_documents(query)
         for issue in allIssues:
             issuesClosedBefore = self.collection.find(
                 {'closed_at': {
@@ -216,7 +231,6 @@ class EvalutorWindow:
             
             self.calculateSimilarities(corpus, strategy, k)
         
-        # f.close()
         self.submitButton.config(state=NORMAL)
 
     def calculateSimilarities(self, corpus, strategy, k, writer = None):
@@ -229,10 +243,16 @@ class EvalutorWindow:
         sb = strategy(list(corpus.keys()), currIssue)
         ordered = sorted(sb, key=lambda x: x[1], reverse=True)
         useK = min(k, len(ordered))
-        # currRow = [f"{corpus[currIssue]['title']} - {corpus[currIssue]['number']}", 0]
-
+        
         currSolvedBy = corpus[currIssue]['files']
-
+        
+        FILES_FORMAT = ('.txt', '.md')
+        if self.removeTextFiles.get():
+            currSolvedBy = list(filter(lambda x: not x.lower().endswith(FILES_FORMAT), currSolvedBy))
+        
+        if(len(currSolvedBy) == 0):
+            return
+        
         '''
         data|repositorio|issue|#arquivos|topk|tecnica|mapk|min_sim|max_sim|mediana_sim|#acertos|#erros|arquivos_resolvidos_de_verdade|arquivos_sugestoes
         
@@ -253,7 +273,9 @@ class EvalutorWindow:
                 'removeLinks': self.links.get(),
                 'removeDigits': self.digits.get(),
                 'removeStopWords': self.stopWords.get(),
-                'lemmatization': self.lemmatization.get()
+                'lemmatization': self.lemmatization.get(),
+                'removeTextFiles': self.removeTextFiles.get(),
+                'goodFirstIssue': self.goodFirstIssue.get(),
             },
             'arquivos_resolvidos_de_verdade': currSolvedBy,
             'mapk': 0,
@@ -269,12 +291,12 @@ class EvalutorWindow:
         for i in range(useK):
             currSugestion = ordered[i][0]
             currSugestionFiles = corpus[currSugestion]['files']
+            if self.removeTextFiles.get():
+                currSugestionFiles = list(filter(lambda x: not x.lower().endswith(FILES_FORMAT), currSugestionFiles))
             output['arquivos_sugeridos'].extend(currSugestionFiles)
             currApk = apk(currSolvedBy, currSugestionFiles, len(currSolvedBy))
             apkArr.append(currApk)
-            # currSugestionSimilarity = ordered[i][1]
-            # currRow.extend([f"{corpus[currSugestion]['title']} - {corpus[currSugestion]['number']}", currSugestionSimilarity, currApk])
-        
+  
         output['arquivos_sugeridos'] = list(OrderedDict.fromkeys(output['arquivos_sugeridos']))
         output['acertos'] = len([x for x in output['arquivos_sugeridos'] if x in output['arquivos_resolvidos_de_verdade']])
         output['erros'] = len(output['arquivos_sugeridos']) - output['acertos']
@@ -289,19 +311,19 @@ class EvalutorWindow:
                     'removeLinks': output['filtros']['removeLinks'],
                     'removeDigits': output['filtros']['removeDigits'],
                     'removeStopWords': output['filtros']['removeStopWords'],
-                    'lemmatization': output['filtros']['lemmatization']
+                    'lemmatization': output['filtros']['lemmatization'],
+                    'removeTextFiles': output['filtros']['removeTextFiles'],
+                    'goodFirstIssue': output['filtros']['goodFirstIssue'],
                 },
             },{
                 "$set": output
             },
             upsert=True
         )
-        # currRow[1] = np.mean(apkArr)
-        # writer.writerow(currRow)
 
 
 window=Tk()
 mywin=EvalutorWindow(window)
 window.title('Evaluate Comparison Methods')
-window.geometry("600x550+10+10")
+window.geometry("650x550+10+10")
 window.mainloop()

@@ -54,13 +54,14 @@ def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
       filesInThisPR = []
       page = 1
       while not fetchedAll and len(filesInThisPR) < 3000:
-        files = octokit.pulls.list_files(owner=owner, repo=repo, pull_number=pr.split('/')[-1], page=page, per_page=100).json
+        branchOwner, branchRepo = pr.split('https://github.com/')[1].split('/')[:2]
+        files = octokit.pulls.list_files(owner=branchOwner, repo=branchRepo, pull_number=pr.split('/')[-1], page=page, per_page=100).json
         if len(files) < 100:
           fetchedAll = True
         page += 1
         filesInThisPR.extend(list(map(lambda x: x['filename'], files)))
       filesSolvingThisIssue.extend(filesInThisPR)
-    
+
     dbCollection.update_one({
       'number': issue['number']
     },{"$set": {
@@ -68,5 +69,6 @@ def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
       'body': issue['body'],
       'number': issue['number'],
       'files': filesSolvingThisIssue,
+      'labels': list(map(lambda x: x['name'], issue['labels'])),
       'closed_at': issue['closed_at'],
     }}, upsert=True)
