@@ -201,6 +201,7 @@ class EvalutorWindow:
             
             issues = {issue['title']: issue for issue in issuesClosedBefore}
             if len(issues) == 1:
+                print(f'Pulando {issues[0]} pois não tem issues anteriores para serem sugeridas')
                 continue # Não tem issues para comparar
 
             corpus = {}
@@ -260,6 +261,7 @@ class EvalutorWindow:
             currSolvedBy = list(filter(lambda x: not x.lower().endswith(FILES_FORMAT), currSolvedBy))
         
         if(len(currSolvedBy) == 0):
+            print(f'Pulando {currIssue} pois não tem arquivos resolvidos')
             return
         
         '''
