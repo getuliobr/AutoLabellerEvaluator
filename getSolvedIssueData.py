@@ -12,8 +12,11 @@ import re
 
 def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
   octokit = Octokit(auth='installation', app_id=config['GITHUB']['APP_IDENTIFIER'], private_key=config['GITHUB']['PRIVATE_KEY'])
-
-  data = octokit.search.issues_and_pull_requests(q=f'repo:{owner}/{repo} state:closed linked:pr is:issue sort:created', per_page=100).json
+  
+  searchString = f'repo:{owner}/{repo} state:closed linked:pr is:issue sort:created'
+  data = octokit.search.issues_and_pull_requests(q=searchString, per_page=100).json
+  
+  
   issuesList = data['items']
   total = data['total_count']
   total_saved = dbCollection.count_documents({})
@@ -21,18 +24,24 @@ def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
   # TODO: fazer isso aqui funcionar bem e rapido
   if total_saved == total:
     return
-  lastIssue = dbCollection.find_one(sort=[('number', -1)])
   page = 2
   while len(issuesList) != total:
     pb['value'] = len(issuesList)/total * 100
     label.config(text=f"Page: {page} - {len(issuesList)}/{total}")
-    data = octokit.search.issues_and_pull_requests(q=f'repo:{owner}/{repo} state:closed linked:pr is:issue', per_page=100, page=page).json
+    data = octokit.search.issues_and_pull_requests(q=searchString, per_page=100, page=page).json
     try:
       issuesList.extend(data['items'])
       page += 1
     except:
-      break
-  filesThatSolveIssue = {}
+      errMessage = data['message']
+      if errMessage == 'Only the first 1000 search results are available':
+        lastIssue = issuesList[-1]
+        created = lastIssue['created_at']
+        searchString = f'repo:{owner}/{repo} state:closed linked:pr is:issue sort:created created:<{created}'
+        print('Now fetching issues created before:', created)
+        page = 1
+      else:
+        break
 
   label.config(text=f"Fetching issue data")
   pb['value'] = 0
