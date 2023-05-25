@@ -201,7 +201,7 @@ class EvalutorWindow:
             
             issues = {issue['title']: issue for issue in issuesClosedBefore}
             if len(issues) == 1:
-                print(f'Pulando {issues[0]} pois não tem issues anteriores para serem sugeridas')
+                print(f'Pulando {issues[0][:10]} pois não tem issues anteriores para serem sugeridas')
                 continue # Não tem issues para comparar
 
             corpus = {}

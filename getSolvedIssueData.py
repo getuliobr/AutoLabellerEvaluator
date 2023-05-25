@@ -9,6 +9,7 @@ from pymongo.collection import Collection
 
 from config import config
 import re
+import time
 
 def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
   octokit = Octokit(auth='installation', app_id=config['GITHUB']['APP_IDENTIFIER'], private_key=config['GITHUB']['PRIVATE_KEY'])
@@ -40,8 +41,12 @@ def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
         searchString = f'repo:{owner}/{repo} state:closed linked:pr is:issue sort:created created:<{created}'
         print('Now fetching issues created before:', created)
         page = 1
+      elif errMessage.startswith('API rate limit exceeded for installation ID'):
+        print('Rate limit exceeded, waiting 10 seconds')
+        time.sleep(10)
       else:
-        break
+        print(errMessage)
+        fetchedAll = True
 
   label.config(text=f"Fetching issue data")
   pb['value'] = 0
@@ -57,6 +62,7 @@ def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
     linkedMergedPR = [f"https://github.com{i.parent['href']}" for i in issueForm.find_all('svg', attrs={ "aria-label": re.compile('Merged Pull Request')})]
     filesSolvingThisIssue = []
 
+
     for pr in linkedMergedPR:
       label.config(text=f"Getting pull request {pr} files")
       fetchedAll = False
@@ -64,11 +70,17 @@ def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
       page = 1
       while not fetchedAll and len(filesInThisPR) < 3000:
         branchOwner, branchRepo = pr.split('https://github.com/')[1].split('/')[:2]
-        files = octokit.pulls.list_files(owner=branchOwner, repo=branchRepo, pull_number=pr.split('/')[-1], page=page, per_page=100).json
-        if len(files) < 100:
-          fetchedAll = True
-        page += 1
-        filesInThisPR.extend(list(map(lambda x: x['filename'], files)))
+        try:
+          data = octokit.pulls.list_files(owner=branchOwner, repo=branchRepo, pull_number=pr.split('/')[-1], page=page, per_page=100)
+          files = data.json
+          if len(files) < 100:
+            fetchedAll = True
+          filesInThisPR.extend(list(map(lambda x: x['filename'], files)))
+          page += 1
+        except Exception as e:
+          if files['message'] == 'Bad credentials':
+            print('Reauthenticate')
+            octokit = Octokit(auth='installation', app_id=config['GITHUB']['APP_IDENTIFIER'], private_key=config['GITHUB']['PRIVATE_KEY'])
       filesSolvingThisIssue.extend(filesInThisPR)
 
     dbCollection.update_one({
