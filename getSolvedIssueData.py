@@ -9,11 +9,15 @@ from pymongo.collection import Collection
 
 from config import config
 import re
+import time
 
 def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
   octokit = Octokit(auth='installation', app_id=config['GITHUB']['APP_IDENTIFIER'], private_key=config['GITHUB']['PRIVATE_KEY'])
-
-  data = octokit.search.issues_and_pull_requests(q=f'repo:{owner}/{repo} state:closed linked:pr is:issue sort:created', per_page=100).json
+  
+  searchString = f'repo:{owner}/{repo} state:closed linked:pr is:issue sort:created'
+  data = octokit.search.issues_and_pull_requests(q=searchString, per_page=100).json
+  
+  
   issuesList = data['items']
   total = data['total_count']
   total_saved = dbCollection.count_documents({})
@@ -21,18 +25,28 @@ def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
   # TODO: fazer isso aqui funcionar bem e rapido
   if total_saved == total:
     return
-  lastIssue = dbCollection.find_one(sort=[('number', -1)])
   page = 2
   while len(issuesList) != total:
     pb['value'] = len(issuesList)/total * 100
     label.config(text=f"Page: {page} - {len(issuesList)}/{total}")
-    data = octokit.search.issues_and_pull_requests(q=f'repo:{owner}/{repo} state:closed linked:pr is:issue', per_page=100, page=page).json
+    data = octokit.search.issues_and_pull_requests(q=searchString, per_page=100, page=page).json
     try:
       issuesList.extend(data['items'])
       page += 1
     except:
-      break
-  filesThatSolveIssue = {}
+      errMessage = data['message']
+      if errMessage == 'Only the first 1000 search results are available':
+        lastIssue = issuesList[-1]
+        created = lastIssue['created_at']
+        searchString = f'repo:{owner}/{repo} state:closed linked:pr is:issue sort:created created:<{created}'
+        print('Now fetching issues created before:', created)
+        page = 1
+      elif errMessage.startswith('API rate limit exceeded for installation ID'):
+        print('Rate limit exceeded, waiting 10 seconds')
+        time.sleep(10)
+      else:
+        print(errMessage)
+        fetchedAll = True
 
   label.config(text=f"Fetching issue data")
   pb['value'] = 0
@@ -48,6 +62,7 @@ def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
     linkedMergedPR = [f"https://github.com{i.parent['href']}" for i in issueForm.find_all('svg', attrs={ "aria-label": re.compile('Merged Pull Request')})]
     filesSolvingThisIssue = []
 
+
     for pr in linkedMergedPR:
       label.config(text=f"Getting pull request {pr} files")
       fetchedAll = False
@@ -55,11 +70,17 @@ def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
       page = 1
       while not fetchedAll and len(filesInThisPR) < 3000:
         branchOwner, branchRepo = pr.split('https://github.com/')[1].split('/')[:2]
-        files = octokit.pulls.list_files(owner=branchOwner, repo=branchRepo, pull_number=pr.split('/')[-1], page=page, per_page=100).json
-        if len(files) < 100:
-          fetchedAll = True
-        page += 1
-        filesInThisPR.extend(list(map(lambda x: x['filename'], files)))
+        try:
+          data = octokit.pulls.list_files(owner=branchOwner, repo=branchRepo, pull_number=pr.split('/')[-1], page=page, per_page=100)
+          files = data.json
+          if len(files) < 100:
+            fetchedAll = True
+          filesInThisPR.extend(list(map(lambda x: x['filename'], files)))
+          page += 1
+        except Exception as e:
+          if files['message'] == 'Bad credentials':
+            print('Reauthenticate')
+            octokit = Octokit(auth='installation', app_id=config['GITHUB']['APP_IDENTIFIER'], private_key=config['GITHUB']['PRIVATE_KEY'])
       filesSolvingThisIssue.extend(filesInThisPR)
 
     dbCollection.update_one({

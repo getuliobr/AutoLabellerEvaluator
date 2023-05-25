@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"8ab9091123b241ff9f714772c710873b","collectionName":"microsoft/typescript","type":"collection"}

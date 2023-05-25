@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"234c16ba849d4d1b871335fe5422ecb0","collectionName":"facebook/react","type":"collection"}
