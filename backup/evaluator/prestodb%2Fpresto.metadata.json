@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"6ee2032df3de44459295ade94c11fd0b","collectionName":"prestodb/presto","type":"collection"}

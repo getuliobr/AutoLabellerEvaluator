@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"2d7f2b9646d941e88412fea0cadc5312","collectionName":"facebook/react-native","type":"collection"}
