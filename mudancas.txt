@@ -1,0 +1,6 @@
+qtde de arquivos recomendando vs testando
+tabela(uma gfi e geral (titulo, titulo + body) concatenar)
+projeto modelo numeroDeIssuesDaRecomendacao numeroDeIssuesTestas nTestes(qnts arquivos corrigidos de verdade) nRecomendacaoDadas(nTotalDeArquivos) totalAcertos
+
+3 repositorios para cada linguagem com labels que lembrem good first issues
+tensorflow, react, vue, reactnative, springboot, scipy, 
