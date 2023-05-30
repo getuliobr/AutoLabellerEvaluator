@@ -60,7 +60,7 @@ class EvalutorWindow:
         self.kLabel.place(x=100, y=100)
         self.k = Entry(bd=3, width= 5)
         self.k.place(x=120, y=100)
-        self.k.insert(0, '5')
+        self.k.insert(0, '3, 5')
 
         self.compareDataLabel = Label(win, text='Compare data')
         self.compareDataLabel.place(x=200, y=100)
@@ -170,7 +170,7 @@ class EvalutorWindow:
         removeStopWords = self.stopWords.get()
         useLemmatization = self.lemmatization.get()
         strategy = self.strategies[self.strategy.get()]
-        k = int(self.k.get())
+        k = list(map(lambda x: int(x), self.k.get().replace(' ', '').split(',')))
         compareData = self.compare.get()
 
         if self.lastRepo != self.repoUrl.get():
@@ -200,8 +200,9 @@ class EvalutorWindow:
                 }).sort('closed_at', pymongo.DESCENDING) # Vai pegando as issues mais velhas para mais novas e para garantir que o primeira é a mais nova ordena
             
             issues = {issue['title']: issue for issue in issuesClosedBefore}
-            if len(issues) == 1:
-                print(f'Pulando {issues[0][:10]} pois não tem issues anteriores para serem sugeridas')
+            if len(issues) <= max(k):
+                primeiraIssue = list(issues.keys())[0]
+                print(f'Pulando {primeiraIssue[:20]} - {issues[primeiraIssue]["number"]} pois não tem issues suficientes para serem sugeridas')
                 continue # Não tem issues para comparar
 
             corpus = {}
@@ -252,7 +253,6 @@ class EvalutorWindow:
 
         sb = strategy(list(corpus.keys()), currIssue)
         ordered = sorted(sb, key=lambda x: x[1], reverse=True)
-        useK = min(k, len(ordered))
         
         currSolvedBy = corpus[currIssue]['files']
         
@@ -261,15 +261,18 @@ class EvalutorWindow:
             currSolvedBy = list(filter(lambda x: not x.lower().endswith(FILES_FORMAT), currSolvedBy))
         
         if(len(currSolvedBy) == 0):
-            print(f'Pulando {currIssue} pois não tem arquivos resolvidos')
+            print(f'Pulando {currIssue[:20]} - {corpus[currIssue]["number"]} pois não tem arquivos resolvidos')
             return
-        
+               
+        for useK in k:
+            self.saveResult(corpus, currIssue, ordered, useK, currSolvedBy)
+    
+    def saveResult(self, corpus, currIssue, ordered, useK, currSolvedBy):
         '''
         data|repositorio|issue|#arquivos|topk|tecnica|mapk|min_sim|max_sim|mediana_sim|#acertos|#erros|arquivos_resolvidos_de_verdade|arquivos_sugestoes
         
         ultimas 3000 issues
         '''
-
         output = {
             'data': corpus[currIssue]['closed_at'],
             'repositorio': self.repoUrl.get(),
@@ -298,6 +301,10 @@ class EvalutorWindow:
             'arquivos_sugeridos': []
         }
         
+        FILES_FORMAT = ('.txt', '.md')
+        if self.removeTextFiles.get():
+            currSolvedBy = list(filter(lambda x: not x.lower().endswith(FILES_FORMAT), currSolvedBy))
+            
         apkArr = []
         for i in range(useK):
             currSugestion = ordered[i][0]
