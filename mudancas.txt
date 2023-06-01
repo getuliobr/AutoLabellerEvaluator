@@ -4,3 +4,8 @@ projeto modelo numeroDeIssuesDaRecomendacao numeroDeIssuesTestas nTestes(qnts ar
 
 3 repositorios para cada linguagem com labels que lembrem good first issues
 tensorflow, react, vue, reactnative, springboot, scipy, 
+
+6 meses/1 meses
+tudo/gfi
+topk 1/3
+titulo/ titulo + body
