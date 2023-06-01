@@ -181,7 +181,9 @@ class EvalutorWindow:
             getSolvedIssues(owner, repo, self.pb, self.pbLabel, self.collection)
         
         # TODO: escolher o inicio e fim do intervalo de issues na interface
-        query = {}
+        query = {
+            'files.0': {'$exists': True}
+        }
         if self.goodFirstIssue.get():
             query['labels'] = self.goodFirstIssueTagName.get()
         if self.startIssueNumber.get() != '':
@@ -193,6 +195,27 @@ class EvalutorWindow:
         self.calculated = 0 # Começa em um porque a primeira issue não tem issues para comparar
         self.total = self.collection.count_documents(query)
         for issue in allIssues:
+            # TODO: adicionar checkbox para remover ja calculadas
+            gfi = 1 if self.goodFirstIssueTagName.get() in issue['labels'] else 0
+            filtros = {
+                'number': issue['number'],
+                'compare': self.compare.get(),
+                'tecnica': self.strategy.get(),
+                'filtros': {
+                    'lowercase': self.lowercase.get(),
+                    'removeLinks': self.links.get(),
+                    'removeDigits': self.digits.get(),
+                    'removeStopWords': self.stopWords.get(),
+                    'lemmatization': self.lemmatization.get(),
+                    'removeTextFiles': self.removeTextFiles.get(),
+                    'goodFirstIssue': gfi,
+                }
+            }
+            if self.outCollection.count_documents(filtros) == len(k): # TODO: Melhorar isso
+                print(f'Pulando {issue["title"][:20]} - {issue["number"]} pois já foi calculada')
+                self.calculated += 1
+                continue
+            
             issuesClosedBefore = self.collection.find(
                 {'closed_at': {
                     '$lte': issue['closed_at']
@@ -203,6 +226,7 @@ class EvalutorWindow:
             if len(issues) <= max(k):
                 primeiraIssue = list(issues.keys())[0]
                 print(f'Pulando {primeiraIssue[:20]} - {issues[primeiraIssue]["number"]} pois não tem issues suficientes para serem sugeridas')
+                self.calculated += 1
                 continue # Não tem issues para comparar
 
             corpus = {}
@@ -273,6 +297,9 @@ class EvalutorWindow:
         
         ultimas 3000 issues
         '''
+        
+        gfi = 1 if self.goodFirstIssueTagName.get() in corpus[currIssue]['labels'] else 0
+        
         output = {
             'data': corpus[currIssue]['closed_at'],
             'repositorio': self.repoUrl.get(),
@@ -289,7 +316,7 @@ class EvalutorWindow:
                 'removeStopWords': self.stopWords.get(),
                 'lemmatization': self.lemmatization.get(),
                 'removeTextFiles': self.removeTextFiles.get(),
-                'goodFirstIssue': self.goodFirstIssue.get(),
+                'goodFirstIssue': gfi,
             },
             'arquivos_resolvidos_de_verdade': currSolvedBy,
             'mapk': 0,
@@ -315,10 +342,13 @@ class EvalutorWindow:
             currApk = apk(currSolvedBy, currSugestionFiles, len(currSolvedBy))
             apkArr.append(currApk)
   
+        
+  
         output['arquivos_sugeridos'] = list(OrderedDict.fromkeys(output['arquivos_sugeridos']))
         output['acertos'] = len([x for x in output['arquivos_sugeridos'] if x in output['arquivos_resolvidos_de_verdade']])
         output['erros'] = len(output['arquivos_sugeridos']) - output['acertos']
         output['mapk'] = np.mean(apkArr)
+        
         self.outCollection.update_one({
                 'number': output['number'],
                 'topk': output['topk'],
