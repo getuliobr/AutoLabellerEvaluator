@@ -1,1 +1,0 @@
-{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"506913de973847b4aba6b0d53c876a73","collectionName":"scikit-learn/scikit-learn","type":"collection"}

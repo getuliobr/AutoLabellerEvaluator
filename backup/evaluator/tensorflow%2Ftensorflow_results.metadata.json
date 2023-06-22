@@ -1,1 +1,0 @@
-{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"89b39c18428749e189248e40c0e1e7a9","collectionName":"tensorflow/tensorflow_results","type":"collection"}

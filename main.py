@@ -60,7 +60,7 @@ class EvalutorWindow:
         self.kLabel.place(x=100, y=100)
         self.k = Entry(bd=3, width= 5)
         self.k.place(x=120, y=100)
-        self.k.insert(0, '3, 5')
+        self.k.insert(0, '1, 3')
 
         self.compareDataLabel = Label(win, text='Compare data')
         self.compareDataLabel.place(x=200, y=100)
@@ -127,10 +127,17 @@ class EvalutorWindow:
         self.goodFirstIssueTagName.place(x=500, y=250)
         self.goodFirstIssueTagName.insert(0, 'good first issue')
 
-        self.startIssueNumberLabel = Label(win, text='Start issue')
-        self.startIssueNumberLabel.place(x=350, y=300)
-        self.startIssueNumber = Entry(bd=3, width=15)
-        self.startIssueNumber.place(x=500, y=300)
+        self.startDateLabel = Label(win, text='Start date')
+        self.startDateLabel.place(x=350, y=300)
+        self.startDate = Entry(bd=3, width=15)
+        self.startDate.place(x=500, y=300)
+        self.startDate.insert(0, '2020-06-01')
+        
+        self.daysBeforeLabel = Label(win, text='Days before')
+        self.daysBeforeLabel.place(x=350, y=350)
+        self.daysBefore = Entry(bd=3, width=15)
+        self.daysBefore.place(x=500, y=350)
+        self.daysBefore.insert(0, '30')
 
         self.strategyLabel = Label(win, text='Strategy')
         self.strategyLabel.place(x=100, y=400)
@@ -182,18 +189,19 @@ class EvalutorWindow:
         
         # TODO: escolher o inicio e fim do intervalo de issues na interface
         query = {
-            'files.0': {'$exists': True}
+            'files.0': {'$exists': True},
+            'closed_at': {
+                '$gte': self.startDate.get()
+            }
         }
+        
         if self.goodFirstIssue.get():
             query['labels'] = self.goodFirstIssueTagName.get()
-        if self.startIssueNumber.get() != '':
-            query['number'] = {
-                '$gte': int(self.startIssueNumber.get())
-            }
         
         allIssues = self.collection.find(query).sort('closed_at', pymongo.ASCENDING)
         self.calculated = 0 # Começa em um porque a primeira issue não tem issues para comparar
         self.total = self.collection.count_documents(query)
+        
         for issue in allIssues:
             # TODO: adicionar checkbox para remover ja calculadas
             gfi = 1 if self.goodFirstIssueTagName.get() in issue['labels'] else 0
@@ -209,6 +217,7 @@ class EvalutorWindow:
                     'lemmatization': self.lemmatization.get(),
                     'removeTextFiles': self.removeTextFiles.get(),
                     'goodFirstIssue': gfi,
+                    'daysBefore': int(self.daysBefore.get())
                 }
             }
             if self.outCollection.count_documents(filtros) == len(k): # TODO: Melhorar isso
@@ -216,11 +225,22 @@ class EvalutorWindow:
                 self.calculated += 1
                 continue
             
+            
+            daysBefore = datetime.datetime.strptime(issue['closed_at'], '%Y-%m-%dT%H:%M:%S%z')
+            daysBefore = daysBefore - datetime.timedelta(int(self.daysBefore.get()))
+            
             issuesClosedBefore = self.collection.find(
                 {'closed_at': {
-                    '$lte': issue['closed_at']
+                    '$lte': issue['closed_at'],
+                    '$gte': daysBefore.strftime('%Y-%m-%d')
                     }
                 }).sort('closed_at', pymongo.DESCENDING) # Vai pegando as issues mais velhas para mais novas e para garantir que o primeira é a mais nova ordena
+            
+            print(self.collection.count_documents({'closed_at': {
+                    '$lte': issue['closed_at'],
+                    '$gte': daysBefore.strftime('%Y-%m-%d')
+                    }
+                }))
             
             issues = {issue['title']: issue for issue in issuesClosedBefore}
             if len(issues) <= max(k):
@@ -317,6 +337,7 @@ class EvalutorWindow:
                 'lemmatization': self.lemmatization.get(),
                 'removeTextFiles': self.removeTextFiles.get(),
                 'goodFirstIssue': gfi,
+                'daysBefore': int(self.daysBefore.get()),
             },
             'arquivos_resolvidos_de_verdade': currSolvedBy,
             'mapk': 0,
@@ -362,6 +383,7 @@ class EvalutorWindow:
                     'lemmatization': output['filtros']['lemmatization'],
                     'removeTextFiles': output['filtros']['removeTextFiles'],
                     'goodFirstIssue': output['filtros']['goodFirstIssue'],
+                    'daysBefore': output['filtros']['daysBefore'], 
                 },
             },{
                 "$set": output
