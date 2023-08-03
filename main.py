@@ -60,7 +60,7 @@ class EvalutorWindow:
         self.kLabel.place(x=100, y=100)
         self.k = Entry(bd=3, width= 5)
         self.k.place(x=120, y=100)
-        self.k.insert(0, '1, 3')
+        self.k.insert(0, '1, 3, 5')
 
         self.compareDataLabel = Label(win, text='Compare data')
         self.compareDataLabel.place(x=200, y=100)
