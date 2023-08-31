@@ -36,7 +36,8 @@ class EvalutorWindow:
         self.strategies = {
             'sbert': sbert,
             'tfidf': tfidf,
-            'word2vec': word2vec
+            'word2vec': word2vec,
+            'w2vGithub': word2vecGithub
         }
 
         self.dataOptions = [
@@ -201,7 +202,7 @@ class EvalutorWindow:
         allIssues = self.collection.find(query).sort('closed_at', pymongo.ASCENDING)
         self.calculated = 0 # Começa em um porque a primeira issue não tem issues para comparar
         self.total = self.collection.count_documents(query)
-        
+        threads = []
         for issue in allIssues:
             # TODO: adicionar checkbox para remover ja calculadas
             gfi = 1 if self.goodFirstIssueTagName.get() in issue['labels'] else 0
@@ -283,8 +284,12 @@ class EvalutorWindow:
                 #     data = lemmatizatizeCorpus(data)
                 corpus[data] = issue
             
-            
-            self.calculateSimilarities(corpus, strategy, k)
+            t = threading.Thread(target=self.calculateSimilarities, args=(corpus, strategy, k))
+            t.start()
+            threads.append(t)
+        
+        for thread in threads:
+            thread.join()
         
         self.submitButton.config(state=NORMAL)
 
