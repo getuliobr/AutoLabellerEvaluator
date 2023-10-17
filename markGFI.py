@@ -5,7 +5,7 @@ from bson.objectid import ObjectId
 # FALAR SOBRE O REACT TER MULTIPLOS GFI
 
 REPOS = {
-  # 'facebook/react',
+  'facebook/react': ['good first issue'],
   'scikit-learn/scikit-learn': ['good first issue'],
   'internetarchive/openlibrary': ['Good First Issue'],
   'tensorflow/tensorflow': ['good first issue'],
