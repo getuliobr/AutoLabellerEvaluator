@@ -11,7 +11,9 @@ from config import config
 import re
 import time
 
-def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
+from graphql import get_issues
+
+def getSolvedIssues_old(owner, repo, pb, label, dbCollection: Collection):
   octokit = Octokit(auth='installation', app_id=config['GITHUB']['APP_IDENTIFIER'], private_key=config['GITHUB']['PRIVATE_KEY'])
   
   searchString = f'repo:{owner}/{repo} state:closed linked:pr is:issue sort:created'
@@ -92,4 +94,17 @@ def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
       'files': filesSolvingThisIssue,
       'labels': list(map(lambda x: x['name'], issue['labels'])),
       'closed_at': issue['closed_at'],
+    }}, upsert=True)
+
+def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection):
+  label.config(text=f"Fetching issues using graphql")
+  issues = get_issues(owner, repo)
+  total = len(issues)
+  for i, issue in enumerate(issues):
+    label.config(text=f"Inserting issue: {issue['number']}, done: {i}/{total}")
+    pb['value'] = (i+1)/total * 100
+    dbCollection.update_one({
+      'number': issue['number']
+    },{"$set": {
+      el: issue[el] for el in issue
     }}, upsert=True)

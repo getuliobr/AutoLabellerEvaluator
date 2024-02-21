@@ -351,7 +351,8 @@ class EvalutorWindow:
             'mediana_sim': getFloatFromValue(ordered[useK // 2][1]),
             'acertos': 0,
             'erros': 0,
-            'arquivos_sugeridos': []
+            'arquivos_sugeridos': [],
+            'issues_sugeridas': []
         }
         
         FILES_FORMAT = ('.txt', '.md')
@@ -361,10 +362,13 @@ class EvalutorWindow:
         apkArr = []
         for i in range(useK):
             currSugestion = ordered[i][0]
+            currSimilarity = ordered[i][1]
             currSugestionFiles = corpus[currSugestion]['files']
+            currSugestionNumber = corpus[currSugestion]['number']
             if self.removeTextFiles.get():
                 currSugestionFiles = list(filter(lambda x: not x.lower().endswith(FILES_FORMAT), currSugestionFiles))
             output['arquivos_sugeridos'].extend(currSugestionFiles)
+            output['issues_sugeridas'].append([currSugestionNumber, currSimilarity])
             currApk = apk(currSolvedBy, currSugestionFiles, len(currSolvedBy))
             apkArr.append(currApk)
   
