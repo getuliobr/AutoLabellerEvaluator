@@ -8,6 +8,7 @@ def exemplo_sbert():
   embedding1 = model.encode('Esse texto descreve uma tarefa')
   embedding2 = model.encode('Outro texto de uma outra tarefa')
   embedding3 = model.encode('Texto completamente diferente')
+  
   # Exibe a similaridade textual do texto 1 para os textos 2 e 3
   print(util.pytorch_cos_sim(embedding1, embedding1))
   print(util.pytorch_cos_sim(embedding1, embedding2))
@@ -16,7 +17,8 @@ def exemplo_sbert():
 def exemplo_tfidf():
   # Importar biblioteca e utilidades
   from sklearn.feature_extraction.text import TfidfVectorizer
-  import numpy as np  
+  import numpy as np
+  from sklearn.metrics.pairwise import cosine_similarity
   
   # Carrega os textos
   corpus = [
@@ -30,8 +32,10 @@ def exemplo_tfidf():
   # Calcula a similaridade de par a par
   pairwise_similarity = tfidf * tfidf.T
   
+  cosineSimilarities = cosine_similarity(tfidf[0], tfidf[1:]).flatten()
+  
   # Imprime a similaridade do primeiro exemplo do corpus entre todos, inclusive ele mesmo
-  print(pairwise_similarity[0])
+  print(cosineSimilarities, pairwise_similarity[0])
   
 def exemplo_word2vec():
   # Importar biblioteca necessárias
@@ -52,3 +56,5 @@ def exemplo_word2vec():
   print(word2vecModel.n_similarity(tokens1, tokens1))
   print(word2vecModel.n_similarity(tokens1, tokens2))
   print(word2vecModel.n_similarity(tokens1, tokens3))
+  
+exemplo_tfidf()
