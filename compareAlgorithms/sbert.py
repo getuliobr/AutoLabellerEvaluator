@@ -11,7 +11,7 @@ def sbert(issuesTitles: list, currentTitle: str):
     if currentTitle == similarTitle:
       continue
     similarTitleEmbedding = model.encode(similarTitle)
-    similarity = util.pytorch_cos_sim(currentTitleEmbedding, similarTitleEmbedding)
-    mostSimilarIssueTitles.append((similarTitle, similarity))
+    similarity = util.pytorch_cos_sim(currentTitleEmbedding, similarTitleEmbedding).numpy()[0]
+    mostSimilarIssueTitles.append((similarTitle, float(similarity[0])))
 
   return mostSimilarIssueTitles

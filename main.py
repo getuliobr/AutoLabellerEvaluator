@@ -191,7 +191,7 @@ class EvalutorWindow:
         # TODO: escolher o inicio e fim do intervalo de issues na interface
         query = {
             'files.0': {'$exists': True},
-            'closed_at': {
+            'created_at': {
                 '$gte': self.startDate.get()
             }
         }
@@ -236,13 +236,7 @@ class EvalutorWindow:
                     '$gte': daysBefore.strftime('%Y-%m-%d')
                     }
                 }).sort('closed_at', pymongo.DESCENDING) # Vai pegando as issues mais velhas para mais novas e para garantir que o primeira é a mais nova ordena
-            
-            print(self.collection.count_documents({'closed_at': {
-                    '$lte': issue['closed_at'],
-                    '$gte': daysBefore.strftime('%Y-%m-%d')
-                    }
-                }))
-            
+                        
             issues = {issue['title']: issue for issue in issuesClosedBefore}
             if len(issues) <= max(k):
                 primeiraIssue = list(issues.keys())[0]
