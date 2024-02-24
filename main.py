@@ -34,16 +34,16 @@ def getFloatFromValue(value):
 class EvalutorWindow:
     def __init__(self, win):
         self.strategies = {
-            'sbert': sbert,
             'tfidf': tfidf,
+            'sbert': sbert,
             'word2vec': word2vec,
             'w2vGithub': word2vecGithub
         }
 
         self.dataOptions = [
+            'title + body',
             'title',
             'body',
-            'title + body'
         ]
 
         self.mongoClient = pymongo.MongoClient(config['DATABASE']['CONNECTION_STRING'])
@@ -61,13 +61,13 @@ class EvalutorWindow:
         self.kLabel.place(x=100, y=100)
         self.k = Entry(bd=3, width= 5)
         self.k.place(x=120, y=100)
-        self.k.insert(0, '1, 3, 5')
+        self.k.insert(0, '1, 3')
 
         self.compareDataLabel = Label(win, text='Compare data')
         self.compareDataLabel.place(x=200, y=100)
 
         self.compare = StringVar()
-        self.compare.set('title')
+        self.compare.set('title + body')
         self.compareOptions = OptionMenu(win, self.compare, *self.dataOptions)
         self.compareOptions.place(x=300, y=100)
         
@@ -227,16 +227,27 @@ class EvalutorWindow:
                 continue
             
             
-            daysBefore = datetime.datetime.strptime(issue['closed_at'], '%Y-%m-%dT%H:%M:%S%z')
+            realNumber = issue["number"]
+            daysBefore = datetime.datetime.strptime(issue['created_at'], '%Y-%m-%dT%H:%M:%S%z')
             daysBefore = daysBefore - datetime.timedelta(int(self.daysBefore.get()))
             
-            issuesClosedBefore = self.collection.find(
-                {'closed_at': {
-                    '$lte': issue['closed_at'],
-                    '$gte': daysBefore.strftime('%Y-%m-%d')
+            formatQuery = {
+                '$or': [
+                    {
+                        'number': realNumber
+                    },
+                    {
+                        'closed_at': {
+                            '$lte': issue['created_at'],
+                            '$gte': daysBefore.strftime('%Y-%m-%d')
+                        },
+                        'files.0': {'$exists': True},
                     }
-                }).sort('closed_at', pymongo.DESCENDING) # Vai pegando as issues mais velhas para mais novas e para garantir que o primeira é a mais nova ordena
-                        
+                ]
+            }
+            
+            issuesClosedBefore = self.collection.find(formatQuery).sort('created_at', pymongo.DESCENDING) # Vai pegando as issues mais velhas para mais novas e para garantir que o primeira é a mais nova ordena
+            
             issues = {issue['title']: issue for issue in issuesClosedBefore}
             if len(issues) <= max(k):
                 primeiraIssue = list(issues.keys())[0]
@@ -278,13 +289,22 @@ class EvalutorWindow:
                 #     data = lemmatizatizeCorpus(data)
                 corpus[data] = issue
             
+            corpusNumber = corpus[list(corpus.keys())[0]]['number']  
+            if corpusNumber != realNumber:
+                print('supposed to be', realNumber, 'was', realNumber)
+            
             t = threading.Thread(target=self.calculateSimilarities, args=(corpus, strategy, k))
             t.start()
             threads.append(t)
-        
+            
+            if len(threads) == 32:
+                for thread in threads:
+                    thread.join()
+                threads = []
+    
         for thread in threads:
             thread.join()
-        
+
         self.submitButton.config(state=NORMAL)
 
     def calculateSimilarities(self, corpus, strategy, k, writer = None):

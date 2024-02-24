@@ -13,10 +13,9 @@ import gensim.downloader as api
 warnings.filterwarnings(action='ignore')
 
 print("Loading word2vec model")
-# CBOWModel = gensim.models.Word2Vec.load('word2vec.model')
-# CBOWModel = api.load('word2vec-google-news-300')  # download the corpus and return it opened as an iterable
-# print("Loaded google news model")
-# CBOWModelGH = gensim.models.Word2Vec.load('w2vGithub.model')
+CBOWModel = api.load('word2vec-google-news-300')  # download the corpus and return it opened as an iterable
+print("Loaded google news model")
+CBOWModelGH = gensim.models.Word2Vec.load('w2vGithub.model')
 print("Loaded github issues model")
 print("Done loading word2vec model")
 
