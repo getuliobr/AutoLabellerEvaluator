@@ -37,7 +37,8 @@ class EvalutorWindow:
             'tfidf': tfidf,
             'sbert': sbert,
             'word2vec': word2vec,
-            'w2vGithub': word2vecGithub
+            'w2vGithub': word2vecGithub,
+            'sbert_new': sbert_new,
         }
 
         self.dataOptions = [
@@ -177,7 +178,8 @@ class EvalutorWindow:
         removeDigits = self.digits.get()
         removeStopWords = self.stopWords.get()
         useLemmatization = self.lemmatization.get()
-        strategy = self.strategies[self.strategy.get()]
+        strategyName = self.strategy.get()
+        strategy = self.strategies[strategyName]
         k = list(map(lambda x: int(x), self.k.get().replace(' ', '').split(',')))
         compareData = self.compare.get()
 
@@ -262,10 +264,20 @@ class EvalutorWindow:
                 data = ''
                 if compareData == 'title':
                     data = title
+                    if strategyName == 'sbert_new':
+                        data = issue['sbert']['title']
                 elif compareData == 'body':
                     data = issue['body']
+                    if strategyName == 'sbert_new':
+                        data = issue['sbert']['body']
                 else:
                     data = f"{title} {issue['body'] if issue['body'] != None else ''}"
+                    if strategyName == 'sbert_new':
+                        data = issue['sbert']['title_body']
+
+                if strategyName == 'sbert_new':
+                    corpus[data] = issue
+                    continue
 
                 if data == None:
                     data = ''

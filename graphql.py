@@ -15,10 +15,12 @@
 #   }
 # );
 
-import time
-import requests, csv
+import requests, csv, time, pickle
 from config import config
+from sentence_transformers import SentenceTransformer
+from bson.binary import Binary
 
+sbertModel = SentenceTransformer('all-MiniLM-L6-v2')
 
 def query(q):
     return requests.post(
@@ -28,7 +30,6 @@ def query(q):
             'Authorization': f'bearer {config["GITHUB"]["TOKEN"]}'
         }
     ).json()
-
 
 def get_closed_issue_with_linked_pr(owner, repo, date='2000-01-01T00:00:00Z', first = 49):
     # tem um outro jeito de achar o pr que fechou a issue por meio do evento closed e olhar no campo state-reason se for completed tem como achar o pr
@@ -148,6 +149,19 @@ def get_closed_issue_with_linked_pr(owner, repo, date='2000-01-01T00:00:00Z', fi
         print("err:", result)
         raise e
 
+def get_sbert_embeddings(issue):
+    title = issue['title'] if issue['title'] != None else ''
+    body = issue['body'] if issue['body'] != None else ''
+    title_body = f"{title} {body}"
+    
+    encode = lambda x: Binary(pickle.dumps(sbertModel.encode(x)))
+    
+    return {
+        'title': encode(title),
+        'body': encode(body),
+        'title_body': encode(title_body)
+    }
+
 def clean_up(issue):
     issue = issue["node"]
     issue["labels"] = [ node["name"] for node in issue["labels"]["nodes"] if node ]
@@ -158,6 +172,7 @@ def clean_up(issue):
     issue["closed_at"] = issue["closedAt"]
     issue["created_at"] = issue["createdAt"]
     del issue["timelineItems"], issue["closedAt"], issue["createdAt"], issue["state"]
+    issue["sbert"] = get_sbert_embeddings(issue)
     return issue
 
 def get_issues(owner, repo, date='2000-01-01T00:00:00Z'):
