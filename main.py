@@ -199,11 +199,11 @@ class EvalutorWindow:
         if self.goodFirstIssue.get():
             query['labels'] = self.goodFirstIssueTagName.get()
         
-        allIssues = self.collection.find(query).sort('closed_at', pymongo.ASCENDING)
+        allIssuesCursor = self.collection.find(query, no_cursor_timeout=True).sort('closed_at', pymongo.ASCENDING)
         self.calculated = 0 # Começa em um porque a primeira issue não tem issues para comparar
         self.total = self.collection.count_documents(query)
         threads = []
-        for issue in allIssues:
+        for issue in allIssuesCursor:
             # TODO: adicionar checkbox para remover ja calculadas
             gfi = 1 if self.goodFirstIssueTagName.get() in issue['labels'] else 0
             filtros = {
@@ -246,9 +246,10 @@ class EvalutorWindow:
                 ]
             }
             
-            issuesClosedBefore = self.collection.find(formatQuery).sort('created_at', pymongo.DESCENDING) # Vai pegando as issues mais velhas para mais novas e para garantir que o primeira é a mais nova ordena
+            issuesClosedBeforeCursor = self.collection.find(formatQuery, no_cursor_timeout=True).sort('created_at', pymongo.DESCENDING) # Vai pegando as issues mais velhas para mais novas e para garantir que o primeira é a mais nova ordena
             
-            issues = {issue['title']: issue for issue in issuesClosedBefore}
+            issues = {issue['title']: issue for issue in issuesClosedBeforeCursor}
+            issuesClosedBeforeCursor.close()
             if len(issues) <= max(k):
                 primeiraIssue = list(issues.keys())[0]
                 print(f'Pulando {primeiraIssue[:20]} - {issues[primeiraIssue]["number"]} pois não tem issues suficientes para serem sugeridas')
@@ -304,7 +305,7 @@ class EvalutorWindow:
     
         for thread in threads:
             thread.join()
-
+        allIssuesCursor.close()
         self.submitButton.config(state=NORMAL)
 
     def calculateSimilarities(self, corpus, strategy, k, writer = None):
