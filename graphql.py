@@ -1,26 +1,9 @@
-# import axios from "axios";
-# import dotenv from "dotenv";
-
-# dotenv.config();
-# const { GITHUB_TOKEN } = process.env;
-
-# export default (query) => axios.post(
-#   'https://api.github.com/graphql',
-#   { query },
-#   {
-#     headers: {
-#       'Authorization': `bearer ${GITHUB_TOKEN}`,
-#       'Content-Type': 'application/x-www-form-urlencoded'
-#     }
-#   }
-# );
-
 import requests, csv, time, pickle
 from config import config
-from sentence_transformers import SentenceTransformer
-from bson.binary import Binary
 
-sbertModel = SentenceTransformer('all-MiniLM-L6-v2')
+from compareAlgorithms.tfidf import get_tfidf_filtered
+from compareAlgorithms.sbert import get_sbert_embeddings
+from compareAlgorithms.word2vec import get_w2vGithub_embeddings, get_word2vec_embeddings
 
 def query(q):
     return requests.post(
@@ -149,33 +132,32 @@ def get_closed_issue_with_linked_pr(owner, repo, date='2000-01-01T00:00:00Z', fi
         print("err:", result)
         raise e
 
-def get_sbert_embeddings(issue):
-    title = issue['title'] if issue['title'] != None else ''
-    body = issue['body'] if issue['body'] != None else ''
-    title_body = f"{title} {body}"
+def clean_up(setLowercase, removeLinks, removeDigits, removeStopWords):
+    def wrapped(issue):
+        issue = issue["node"]
+        issue["labels"] = [ node["name"] for node in issue["labels"]["nodes"] if node ]
+        
+        linkedPrs = [ node["closer"] for node in issue["timelineItems"]["nodes"] if node and node["stateReason"] == "COMPLETED" and node["closer"]]
+        issue["files"] = list(set( file["path"] for pr in linkedPrs for file in pr["files"]["nodes"] if file ))
+        issue["prs"] = list(set([ pr["number"] for pr in linkedPrs ]))
+        issue["closed_at"] = issue["closedAt"]
+        issue["created_at"] = issue["createdAt"]
     
-    encode = lambda x: Binary(pickle.dumps(sbertModel.encode(x)))
+        issue["lowercase"] = setLowercase
+        issue["removeLinks"] = removeLinks
+        issue["removeDigits"] = removeDigits
+        issue["removeStopWords"] = removeStopWords
     
-    return {
-        'title': encode(title),
-        'body': encode(body),
-        'title_body': encode(title_body)
-    }
+        issue["tfidf"] = get_tfidf_filtered(issue)
+        issue["sbert"] = get_sbert_embeddings(issue)
+        issue["word2vec"] = get_word2vec_embeddings(issue)
+        issue["w2vGithub"] = get_w2vGithub_embeddings(issue)
+                
+        del issue["timelineItems"], issue["closedAt"], issue["createdAt"], issue["state"]
+        return issue
+    return wrapped
 
-def clean_up(issue):
-    issue = issue["node"]
-    issue["labels"] = [ node["name"] for node in issue["labels"]["nodes"] if node ]
-    linkedPrs = [ node["closer"] for node in issue["timelineItems"]["nodes"] if node and node["stateReason"] == "COMPLETED" and node["closer"]]
-    # linkedPrs = [ pr["source"] for pr in unlinkedPrs ]
-    issue["files"] = list(set( file["path"] for pr in linkedPrs for file in pr["files"]["nodes"] if file ))
-    issue["prs"] = list(set([ pr["number"] for pr in linkedPrs ]))
-    issue["closed_at"] = issue["closedAt"]
-    issue["created_at"] = issue["createdAt"]
-    del issue["timelineItems"], issue["closedAt"], issue["createdAt"], issue["state"]
-    issue["sbert"] = get_sbert_embeddings(issue)
-    return issue
-
-def get_issues(owner, repo, date='2000-01-01T00:00:00Z'):
+def get_issues(owner, repo, date='2000-01-01T00:00:00Z', setLowercase=False, removeLinks=False, removeDigits=False, removeStopWords=False):
     issues = []
     lastFetch = -1
     while lastFetch:
@@ -184,7 +166,7 @@ def get_issues(owner, repo, date='2000-01-01T00:00:00Z'):
         issueList = get_closed_issue_with_linked_pr(owner, repo, date)
         issues.extend(issueList)
         lastFetch = len(issueList)
-    return list(map(clean_up, issues))
+    return list(map(clean_up(setLowercase, removeLinks, removeDigits, removeStopWords), issues))
 
 def get_projects(first=100, language='javascript'):
     reposQueryBuilder = lambda after='null': f'''query {{

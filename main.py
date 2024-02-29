@@ -4,8 +4,7 @@ from string import digits
 from tkinter import *
 from tkinter.ttk import Progressbar
 
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
+from filters import *
 
 from compareAlgorithms.sbert import *
 from compareAlgorithms.tfidf import *
@@ -35,10 +34,10 @@ class EvalutorWindow:
     def __init__(self, win):
         self.strategies = {
             'tfidf': tfidf,
-            'sbert': sbert,
-            'word2vec': word2vec,
-            'w2vGithub': word2vecGithub,
-            'sbert_new': sbert_new,
+            'sbert': sbert_new,
+            'word2vec': word2vec_new,
+            'w2vGithub': word2vec_new,
+            # 'sbert_new': sbert_new,
         }
 
         self.dataOptions = [
@@ -188,11 +187,15 @@ class EvalutorWindow:
             self.lastRepo = self.repoUrl.get()
         
         if self.useAPI.get():
-            getSolvedIssues(owner, repo, self.pb, self.pbLabel, self.collection)
+            getSolvedIssues(owner, repo, self.pb, self.pbLabel, self.collection, setLowercase, removeLinks, removeDigits, removeStopWords)
         
         # TODO: escolher o inicio e fim do intervalo de issues na interface
         query = {
             'files.0': {'$exists': True},
+            'lowercase': setLowercase,
+            'removeLinks': removeLinks,
+            'removeDigits': removeDigits,
+            'removeStopWords': removeStopWords,
             'created_at': {
                 '$gte': self.startDate.get()
             }
@@ -248,7 +251,7 @@ class EvalutorWindow:
                 ]
             }
             
-            issuesClosedBeforeCursor = self.collection.find(formatQuery, no_cursor_timeout=True).sort('created_at', pymongo.DESCENDING) # Vai pegando as issues mais velhas para mais novas e para garantir que o primeira é a mais nova ordena
+            issuesClosedBeforeCursor = self.collection.find(formatQuery, no_cursor_timeout=True).sort('number', pymongo.DESCENDING) # Vai pegando as issues mais velhas para mais novas e para garantir que o primeira é a mais nova ordena
             
             issues = {issue['title']: issue for issue in issuesClosedBeforeCursor}
             issuesClosedBeforeCursor.close()
@@ -261,50 +264,15 @@ class EvalutorWindow:
             corpus = {}
             for title in issues:
                 issue = issues[title]
-                data = ''
-                if compareData == 'title':
-                    data = title
-                    if strategyName == 'sbert_new':
-                        data = issue['sbert']['title']
-                elif compareData == 'body':
-                    data = issue['body']
-                    if strategyName == 'sbert_new':
-                        data = issue['sbert']['body']
-                else:
-                    data = f"{title} {issue['body'] if issue['body'] != None else ''}"
-                    if strategyName == 'sbert_new':
-                        data = issue['sbert']['title_body']
+                
+                compareData = compareData if compareData != 'title + body' else 'title_body'
+                data = issue[strategyName][compareData]
 
-                if strategyName == 'sbert_new':
-                    corpus[data] = issue
-                    continue
-
-                if data == None:
-                    data = ''
-
-                if setLowercase:
-                    data = data.lower()
-                
-                if removeLinks:
-                    data = re.sub(r'http\S+', '', data)
-                
-                if removeDigits:
-                    remove_digits = str.maketrans('', '', digits)
-                    data = data.translate(remove_digits)
-                
-                if removeStopWords:
-                    stop_words = set(stopwords.words('english'))
-                    word_tokens = word_tokenize(data)
-                    data = [w for w in word_tokens if not w in stop_words]
-                    data = ' '.join(data)
-                
-                # if useLemmatization:
-                #     data = lemmatizatizeCorpus(data)
                 corpus[data] = issue
             
             corpusNumber = corpus[list(corpus.keys())[0]]['number']  
             if corpusNumber != realNumber:
-                print('supposed to be', realNumber, 'was', realNumber)
+                print('supposed to be', realNumber, 'was', corpusNumber)
             
             t = threading.Thread(target=self.calculateSimilarities, args=(corpus, strategy, k))
             t.start()
@@ -337,7 +305,7 @@ class EvalutorWindow:
             currSolvedBy = list(filter(lambda x: not x.lower().endswith(FILES_FORMAT), currSolvedBy))
         
         if(len(currSolvedBy) == 0):
-            print(f'Pulando {currIssue[:20]} - {corpus[currIssue]["number"]} pois não tem arquivos resolvidos')
+            print(f'Pulando {corpus[currIssue]["title"][:20]} - {corpus[currIssue]["number"]} pois não tem arquivos resolvidos')
             return
                
         for useK in k:
