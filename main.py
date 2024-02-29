@@ -178,7 +178,6 @@ class EvalutorWindow:
         removeStopWords = self.stopWords.get()
         useLemmatization = self.lemmatization.get()
         strategyName = self.strategy.get()
-        strategy = self.strategies[strategyName]
         k = list(map(lambda x: int(x), self.k.get().replace(' ', '').split(',')))
         compareData = self.compare.get()
 
@@ -231,15 +230,14 @@ class EvalutorWindow:
                 self.calculated += 1
                 continue
             
-            
-            realNumber = issue["number"]
+            currIssueNumber = issue["number"]
             daysBefore = datetime.datetime.strptime(issue['created_at'], '%Y-%m-%dT%H:%M:%S%z')
             daysBefore = daysBefore - datetime.timedelta(int(self.daysBefore.get()))
             
             formatQuery = {
                 '$or': [
                     {
-                        'number': realNumber
+                        'number': currIssueNumber
                     },
                     {
                         'closed_at': {
@@ -253,28 +251,16 @@ class EvalutorWindow:
             
             issuesClosedBeforeCursor = self.collection.find(formatQuery, no_cursor_timeout=True).sort('number', pymongo.DESCENDING) # Vai pegando as issues mais velhas para mais novas e para garantir que o primeira é a mais nova ordena
             
-            issues = {issue['title']: issue for issue in issuesClosedBeforeCursor}
+            corpus = {issue['number']: issue for issue in issuesClosedBeforeCursor}
             issuesClosedBeforeCursor.close()
-            if len(issues) <= max(k):
-                primeiraIssue = list(issues.keys())[0]
-                print(f'Pulando {primeiraIssue[:20]} - {issues[primeiraIssue]["number"]} pois não tem issues suficientes para serem sugeridas')
+            if len(corpus) <= max(k):
+                print(f'Pulando {corpus[currIssueNumber]["number"]} - {corpus[currIssueNumber]["number"]} pois não tem issues suficientes para serem sugeridas')
                 self.calculated += 1
                 continue # Não tem issues para comparar
 
-            corpus = {}
-            for title in issues:
-                issue = issues[title]
-                
-                compareData = compareData if compareData != 'title + body' else 'title_body'
-                data = issue[strategyName][compareData]
-
-                corpus[data] = issue
-            
-            corpusNumber = corpus[list(corpus.keys())[0]]['number']  
-            if corpusNumber != realNumber:
-                print('supposed to be', realNumber, 'was', corpusNumber)
-            
-            t = threading.Thread(target=self.calculateSimilarities, args=(corpus, strategy, k))
+            compareData = compareData if compareData != 'title + body' else 'title_body'
+                        
+            t = threading.Thread(target=self.calculateSimilarities, args=(currIssueNumber, corpus, compareData, strategyName, k))
             t.start()
             threads.append(t)
             
@@ -288,16 +274,11 @@ class EvalutorWindow:
         allIssuesCursor.close()
         self.submitButton.config(state=NORMAL)
 
-    def calculateSimilarities(self, corpus, strategy, k, writer = None):
+    def calculateSimilarities(self, currIssue, corpus, compareData, strategyName, k):
         self.calculated += 1
         self.pbLabel.config(text=f'Calculating similarities: {self.calculated}/{self.total} ')
         self.pb['value'] = self.calculated / self.total * 100
 
-        currIssue = list(corpus.keys())[0]
-
-        sb = strategy(list(corpus.keys()), currIssue)
-        ordered = sorted(sb, key=lambda x: x[1], reverse=True)
-        
         currSolvedBy = corpus[currIssue]['files']
         
         FILES_FORMAT = ('.txt', '.md')
@@ -307,7 +288,14 @@ class EvalutorWindow:
         if(len(currSolvedBy) == 0):
             print(f'Pulando {corpus[currIssue]["title"][:20]} - {corpus[currIssue]["number"]} pois não tem arquivos resolvidos')
             return
-               
+
+        strategy = self.strategies[strategyName]
+        
+        currIssueCompareData = corpus[currIssue][strategyName][compareData]
+
+        sb = strategy([(issue_number, corpus[issue_number][strategyName][compareData]) for issue_number in corpus], currIssueCompareData)
+        ordered = sorted(sb, key=lambda x: x[1], reverse=True)
+                       
         for useK in k:
             self.saveResult(corpus, currIssue, ordered, useK, currSolvedBy)
     

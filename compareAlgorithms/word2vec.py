@@ -74,12 +74,12 @@ def word2vec_new(issuesTitles: list, currentTitle: str):
 
   currentTitleEmbedding = pickle.loads(currentTitle)
 
-  for similarTitle in issuesTitles:
+  for number, similarTitle in issuesTitles:
     if currentTitle == similarTitle:
       continue
     similarTitleEmbedding = pickle.loads(similarTitle)
     # got this from gensim keyedvectors implementation
     similarity = dot(currentTitleEmbedding, similarTitleEmbedding)
-    mostSimilarIssueTitles.append((similarTitle, float(similarity)))
+    mostSimilarIssueTitles.append((number, float(similarity)))
 
   return mostSimilarIssueTitles

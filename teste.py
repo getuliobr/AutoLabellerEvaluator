@@ -1,17 +1,15 @@
-import numpy as np
-import pandas as pd
 import pymongo
-import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy import stats
 from config import config
 
-from octokit import Octokit
+REPO = 'jabref/jabref'
 
-octokit = Octokit(auth='installation', app_id=config['GITHUB']['APP_IDENTIFIER'], private_key=config['GITHUB']['PRIVATE_KEY'])
 
-branchOwner = 'microsoft'
-branchRepo = 'typescript'
-number = 38462
-
-print(octokit.pulls.list_files(owner=branchOwner, repo=branchRepo, pull_number=number, page=1, per_page=100).json)
+mongoClient = pymongo.MongoClient(config['DATABASE']['CONNECTION_STRING'])
+db = mongoClient[config['DATABASE']['NAME']]
+search = db['jabref/jabref_new_results'].find({}, no_cursor_timeout=True)
+for issue in search: 
+  del issue['_id']
+  if not db['jabref/jabref_results'].find_one(issue):
+    print("RESULTADO DIFERENTE NA ISSUE:", issue)
+    break
+search.close()

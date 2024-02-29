@@ -1,7 +1,7 @@
 import pymongo
 from config import config
 
-REPO = 'jabref/jabref'
+# REPO = 'jabref/jabref'
 
 
 mongoClient = pymongo.MongoClient(config['DATABASE']['CONNECTION_STRING'])

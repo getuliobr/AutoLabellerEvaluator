@@ -38,11 +38,11 @@ def sbert_new(issuesTitles: list, currentTitle: str):
 
   currentTitleEmbedding = pickle.loads(currentTitle)
 
-  for similarTitle in issuesTitles:
+  for number, similarTitle in issuesTitles:
     if currentTitle == similarTitle:
       continue
     similarTitleEmbedding = pickle.loads(similarTitle)
     similarity = util.pytorch_cos_sim(currentTitleEmbedding, similarTitleEmbedding).numpy()[0]
-    mostSimilarIssueTitles.append((similarTitle, float(similarity[0])))
+    mostSimilarIssueTitles.append((number, float(similarity[0])))
 
   return mostSimilarIssueTitles

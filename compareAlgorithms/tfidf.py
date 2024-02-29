@@ -4,7 +4,11 @@ import nltk
 from filters import *
 
 def tfidf(issuesTitles: list, currentTitle: str):
-  corpus = issuesTitles
+  corpus = []
+  numbers = []
+  for number, data in issuesTitles:
+    corpus.append(data)
+    numbers.append(number)
 
   last = len(corpus)
   corpus.append(currentTitle)
@@ -16,9 +20,12 @@ def tfidf(issuesTitles: list, currentTitle: str):
   np.fill_diagonal(arr, -1)
   result = []
   for i in range(len(arr[last])):
-    if issuesTitles[i] == currentTitle:
-      continue
-    result.append((issuesTitles[i], arr[last][i]))
+    try:
+      if corpus[i] == currentTitle:
+        continue
+      result.append((numbers[i], arr[last][i]))
+    except:
+      print(i)
   return result
 
 def lemmatizatizeCorpus(corpus):
