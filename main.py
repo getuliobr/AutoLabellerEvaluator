@@ -165,6 +165,7 @@ class EvalutorWindow:
 
     def submit(self):
         self.submitButton.config(state=DISABLED)
+        self.strategyOptions.config(state=DISABLED)
         self.collection = self.db[self.repoUrl.get()]
         self.outCollection = self.db[self.repoUrl.get() + '_results']
         self.thread = threading.Thread(target=self.runThread)
@@ -187,7 +188,8 @@ class EvalutorWindow:
         
         if self.useAPI.get():
             getSolvedIssues(owner, repo, self.pb, self.pbLabel, self.collection, setLowercase, removeLinks, removeDigits, removeStopWords)
-        
+            self.useAPI.set(0)
+            
         # TODO: escolher o inicio e fim do intervalo de issues na interface
         query = {
             'files.0': {'$exists': True},
@@ -273,6 +275,7 @@ class EvalutorWindow:
             thread.join()
         allIssuesCursor.close()
         self.submitButton.config(state=NORMAL)
+        self.strategyOptions.config(state=NORMAL)
 
     def calculateSimilarities(self, currIssue, corpus, compareData, strategyName, k):
         self.calculated += 1
