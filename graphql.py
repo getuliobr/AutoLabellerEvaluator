@@ -1,4 +1,5 @@
-import requests, csv, time, pickle
+from bs4 import BeautifulSoup
+import requests, csv, time, re
 from config import config
 
 from compareAlgorithms.tfidf import get_tfidf_filtered
@@ -138,7 +139,18 @@ def clean_up(setLowercase, removeLinks, removeDigits, removeStopWords):
         issue["labels"] = [ node["name"] for node in issue["labels"]["nodes"] if node ]
         
         linkedPrs = [ node["closer"] for node in issue["timelineItems"]["nodes"] if node and node["stateReason"] == "COMPLETED" and node["closer"]]
-        issue["files"] = list(set( file["path"] for pr in linkedPrs for file in pr["files"]["nodes"] if file ))
+        files = []
+        
+        for pr in linkedPrs:
+            if not pr["files"]:
+                continue
+            prFiles = pr["files"]["nodes"] 
+            for file in prFiles:
+                if file:
+                    files.append(file["path"])
+        
+        issue["files"] = list(set(files))
+        
         issue["prs"] = list(set([ pr["number"] for pr in linkedPrs ]))
         issue["closed_at"] = issue["closedAt"]
         issue["created_at"] = issue["createdAt"]
@@ -241,12 +253,44 @@ def get_projects(first=100, language='javascript'):
     return repos
 
 
+def get_project_data(project):
+    owner, name = project.split('/')
+    r = requests.get(f'https://github.com/{project}')
+    try: 
+        soup = BeautifulSoup(r.text, 'html.parser')
+        contributors = soup.find("a", { "class": "Link--primary no-underline Link d-flex flex-items-center", "href": re.compile(f'/{project}/graphs/contributors', re.IGNORECASE)})
+        contributors = contributors.contents[1].contents[0].replace(',', '')
+    except Exception as e:
+        print(project)
+        print(e)
+        raise Exception()
+    q = query(f'''query {{
+  repository(owner: "{owner}", name: "{name}") {{
+    stargazerCount
+		forks {{
+      totalCount
+    }}
+    languages(first:1, orderBy: {{field: SIZE, direction: DESC}}) {{
+      nodes {{
+        name
+      }}
+    }}
+  }}
+}}
+    ''')
+    data = q['data']['repository']
+    stars = data['stargazerCount']
+    forks = data['forks']['totalCount']
+    language = data['languages']['nodes'][0]['name']
+    return contributors, stars, forks, language
+
 # issues = get_issues('jabref', 'jabref')
 # print(issues, len(issues))
 if __name__ == "__main__":
-    projects = get_projects()
-    print("Encontrei", len(projects), "projetos")
+    get_project_data('apache/airflow')
+    # projects = get_projects()
+    # print("Encontrei", len(projects), "projetos")
 
-    with open('projetos.csv', 'w+') as f:
-        writer = csv.writer(f)
-        writer.writerows(projects)
+    # with open('projetos.csv', 'w+') as f:
+    #     writer = csv.writer(f)
+    #     writer.writerows(projects)

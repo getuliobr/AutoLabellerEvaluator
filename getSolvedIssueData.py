@@ -96,9 +96,9 @@ def getSolvedIssues_old(owner, repo, pb, label, dbCollection: Collection):
       'closed_at': issue['closed_at'],
     }}, upsert=True)
 
-def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection, setLowercase=False, removeLinks=False, removeDigits=False, removeStopWords=False):
+def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection, closedDate='2000-01-01', setLowercase=False, removeLinks=False, removeDigits=False, removeStopWords=False):
   label.config(text=f"Fetching issues using graphql")
-  issues = get_issues(owner, repo, setLowercase=setLowercase, removeLinks=removeLinks, removeDigits=removeDigits, removeStopWords=removeStopWords)
+  issues = get_issues(owner, repo, date=closedDate, setLowercase=setLowercase, removeLinks=removeLinks, removeDigits=removeDigits, removeStopWords=removeStopWords)
   total = len(issues)
   for i, issue in enumerate(issues):
     label.config(text=f"Inserting issue: {issue['number']}, done: {i}/{total}")

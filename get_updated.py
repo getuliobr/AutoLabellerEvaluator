@@ -1,54 +1,56 @@
 import re
-from bs4 import BeautifulSoup
 import pymongo
 from config import config
-import requests
-
-projetos = [
-  #'jabref/jabref',
-  'microsoft/TypeScript',
-  'prestodb/presto',
-  'facebook/react',
-  'vuejs/vue',
-  'tensorflow/tensorflow',
-  'neovim/neovim',
-  'internetarchive/openlibrary',
-  'scikit-learn/scikit-learn'
-]
+from graphql import get_project_data
 
 mongoClient = pymongo.MongoClient(config['DATABASE']['CONNECTION_STRING'])
 db = mongoClient[config['DATABASE']['NAME']]
 
+totalTarefa = 0
+totalGFI = 0
+totalPR = 0
+totalFiles = 0
 
-for projeto in projetos:
-  collection = db[projeto]
+ooo = {}
+
+for result in db.list_collection_names():
+  if result.endswith('_results') or result.startswith('facebook/react'):
+    continue
   
+  collection = db[result]
+   
   totais = collection.count_documents({})
   
-  pos20200601 = collection.count_documents({
-    'files.0': {'$exists': True},
-    'closed_at': {
-      '$gte': '2020-06-01'
+  query = {
+    'created_at': {
+      '$gte': '2020-01-01'
     }
-  })
+  }
   
-  issues = collection.find({
-    'files.0': {'$exists': True},
-    'closed_at': {
-      '$gte': '2020-06-01'
-    }
-  }, sort=[('closed_at', -1)])
-  
+  total = collection.count_documents(query)
+      
   prs = []
-  arquivos = 0
+  files = []
+  
+  issues = collection.find(query, sort=[('closed_at', -1)])
   for issue in issues:
-    arquivos += len(issue['files'])
-    r = requests.get(f'https://github.com/{projeto}/pull/{issue["number"]}')
-    soup = BeautifulSoup(r.text, 'html.parser')
-    issueForm = soup.find("form", { "aria-label": re.compile('Link issues')})
-    if not issueForm:
-      continue
-    linkedMergedPR = [f"https://github.com{i.parent['href']}" for i in issueForm.find_all('svg', attrs={ "aria-label": re.compile('Merged Pull Request')})]
-    prs.extend(linkedMergedPR)
+    prs.extend(issue['prs'])
+    files.extend(issue['files'])
+    
+  prs = len(set(prs))
+  files = len(set(files))
+  
+  query['labels'] = {'$regex': re.compile("good first issue", re.IGNORECASE)}
+  gfi = collection.count_documents(query)
 
-  print(f'{projeto} & {totais} & {pos20200601} & {len(set(prs))} & {arquivos} & ARRUMAR \\\\')
+  totalTarefa += totais
+  totalGFI += gfi
+  totalPR += prs
+  totalFiles += files
+  
+  contributors, stars, forks, language = get_project_data(result)
+  ooo[f'{language} {result}'] = f'{result} & {language} & {stars} & {forks} & {contributors} & {totais} & {gfi} & {prs} & {files} \\\\'
+
+repos = sorted(ooo.keys(), key=lambda x:x.lower())
+for repo in repos:
+  print(ooo[repo])

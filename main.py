@@ -35,8 +35,8 @@ class EvalutorWindow:
         self.strategies = {
             'tfidf': tfidf,
             'sbert': sbert_new,
-            'word2vec': word2vec_new,
-            'w2vGithub': word2vec_new,
+            'word2vec': word2vec_wrapper(False),
+            'w2vGithub': word2vec_wrapper(True),
             # 'sbert_new': sbert_new,
         }
 
@@ -124,21 +124,27 @@ class EvalutorWindow:
 
         self.goodFirstIssueTagNameLabel = Label(win, text='Good First Issue label')
         self.goodFirstIssueTagNameLabel.place(x=350, y=250)
-        self.goodFirstIssueTagName = Entry(bd=3, width=15)
+        self.goodFirstIssueTagName = Entry(bd=3, width=20)
         self.goodFirstIssueTagName.place(x=500, y=250)
         self.goodFirstIssueTagName.insert(0, 'good first issue')
 
         self.startDateLabel = Label(win, text='Start date')
         self.startDateLabel.place(x=350, y=300)
-        self.startDate = Entry(bd=3, width=15)
+        self.startDate = Entry(bd=3, width=20)
         self.startDate.place(x=500, y=300)
         self.startDate.insert(0, '2020-06-01')
         
         self.daysBeforeLabel = Label(win, text='Days before')
         self.daysBeforeLabel.place(x=350, y=350)
-        self.daysBefore = Entry(bd=3, width=15)
+        self.daysBefore = Entry(bd=3, width=20)
         self.daysBefore.place(x=500, y=350)
         self.daysBefore.insert(0, '30')
+        
+        self.closedDateLabel = Label(win, text='Closed date')
+        self.closedDateLabel.place(x=350, y=400)
+        self.closedDate = Entry(bd=3, width=20)
+        self.closedDate.place(x=500, y=400)
+        self.closedDate.insert(0, '2019-12-31T23:59:59Z')
 
         self.strategyLabel = Label(win, text='Strategy')
         self.strategyLabel.place(x=100, y=400)
@@ -187,7 +193,11 @@ class EvalutorWindow:
             self.lastRepo = self.repoUrl.get()
         
         if self.useAPI.get():
-            getSolvedIssues(owner, repo, self.pb, self.pbLabel, self.collection, setLowercase, removeLinks, removeDigits, removeStopWords)
+            sbertCache.clear()
+            w2vCache.clear()
+            w2vGHCache.clear()
+            load_w2v_models()
+            getSolvedIssues(owner, repo, self.pb, self.pbLabel, self.collection, self.closedDate.get(), setLowercase, removeLinks, removeDigits, removeStopWords)
             self.useAPI.set(0)
             
         # TODO: escolher o inicio e fim do intervalo de issues na interface
@@ -296,7 +306,7 @@ class EvalutorWindow:
         
         currIssueCompareData = corpus[currIssue][strategyName][compareData]
 
-        sb = strategy([(issue_number, corpus[issue_number][strategyName][compareData]) for issue_number in corpus], currIssueCompareData)
+        sb = strategy([(issue_number, corpus[issue_number][strategyName][compareData]) for issue_number in corpus], currIssueCompareData, corpus[currIssue]["number"])
         ordered = sorted(sb, key=lambda x: x[1], reverse=True)
                        
         for useK in k:
