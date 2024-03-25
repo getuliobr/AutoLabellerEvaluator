@@ -1,8 +1,10 @@
 import pickle
 from sentence_transformers import SentenceTransformer, util
 from bson.binary import Binary
+from compareAlgorithms.cache import Cache
 
 sbertModel = SentenceTransformer('all-MiniLM-L6-v2')
+sbertCache = Cache()
 
 def sbert(issuesTitles: list, currentTitle: str):
   mostSimilarIssueTitles = []
@@ -33,7 +35,7 @@ def get_sbert_embeddings(issue):
     'title_body': encode(title_body)
   }
 
-def sbert_new(issuesTitles: list, currentTitle: str):
+def sbert_new(issuesTitles: list, currentTitle: str, currNumber):
   mostSimilarIssueTitles = []
 
   currentTitleEmbedding = pickle.loads(currentTitle)
@@ -41,8 +43,19 @@ def sbert_new(issuesTitles: list, currentTitle: str):
   for number, similarTitle in issuesTitles:
     if currentTitle == similarTitle:
       continue
+    
+    cacheVal = sbertCache.get(currNumber, number)
+    if cacheVal:
+      mostSimilarIssueTitles.append((number, cacheVal))
+      continue
+    
+    
+    
     similarTitleEmbedding = pickle.loads(similarTitle)
     similarity = util.pytorch_cos_sim(currentTitleEmbedding, similarTitleEmbedding).numpy()[0]
-    mostSimilarIssueTitles.append((number, float(similarity[0])))
+    similarity = float(similarity[0])
+    
+    sbertCache.set(currNumber, number, similarity)
+    mostSimilarIssueTitles.append((number, similarity))
 
   return mostSimilarIssueTitles

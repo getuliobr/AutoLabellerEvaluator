@@ -3,7 +3,7 @@ import numpy as np
 import nltk
 from filters import *
 
-def tfidf(issuesTitles: list, currentTitle: str):
+def tfidf(issuesTitles: list, currentTitle: str, currNumber):
   corpus = []
   numbers = []
   for number, data in issuesTitles:

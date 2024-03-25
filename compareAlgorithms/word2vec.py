@@ -12,16 +12,29 @@ import warnings
 import gensim.downloader as api
 from bson.binary import Binary
 from numpy import dot
-
+from compareAlgorithms.cache import Cache
 
 warnings.filterwarnings(action='ignore')
 
-print("Loading word2vec model")
-CBOWModel = api.load('word2vec-google-news-300')  # download the corpus and return it opened as an iterable
-print("Loaded google news model")
-CBOWModelGH = Word2Vec.load('w2vGithub.model')
-print("Loaded github issues model")
-print("Done loading word2vec model")
+loaded = False
+CBOWModel = None
+CBOWModelGH = None
+
+def load_w2v_models():
+  global CBOWModel
+  global CBOWModelGH
+  global loaded
+  if not loaded:
+    print("Loading word2vec model")
+    CBOWModel = api.load('word2vec-google-news-300')  # download the corpus and return it opened as an iterable
+    print("Loaded google news model")
+    CBOWModelGH = Word2Vec.load('w2vGithub.model')
+    print("Loaded github issues model")
+    loaded = True
+    print("Done loading word2vec model")
+
+w2vCache = Cache()
+w2vGHCache = Cache()
 
 def word2vec_old(issuesTitles: list, currentTitle: str):  
   mostSimilarIssueTitles = []
@@ -69,7 +82,7 @@ def get_w2vGithub_embeddings(issue):
     'title_body': encode(title_body if len(title_body) else '-')
   }
 
-def word2vec_new(issuesTitles: list, currentTitle: str):  
+def word2vec_new(issuesTitles: list, currentTitle: str, currNumber):  
   mostSimilarIssueTitles = []
 
   currentTitleEmbedding = pickle.loads(currentTitle)
@@ -83,3 +96,31 @@ def word2vec_new(issuesTitles: list, currentTitle: str):
     mostSimilarIssueTitles.append((number, float(similarity)))
 
   return mostSimilarIssueTitles
+
+def word2vec_wrapper(isGithubDataset):
+  cache = w2vGHCache if isGithubDataset else w2vCache
+  
+  def w2v(issuesTitles: list, currentTitle: str, currNumber):
+    mostSimilarIssueTitles = []
+
+    currentTitleEmbedding = pickle.loads(currentTitle)
+
+    for number, similarTitle in issuesTitles:
+      if currentTitle == similarTitle:
+        continue
+      
+      cacheVal = cache.get(currNumber, number)
+      if cacheVal:
+        mostSimilarIssueTitles.append((number, cacheVal))
+        continue
+      
+      similarTitleEmbedding = pickle.loads(similarTitle)
+      # got this from gensim keyedvectors implementation
+      similarity = dot(currentTitleEmbedding, similarTitleEmbedding)
+      similarity = float(similarity)
+      
+      cache.set(currNumber, number, similarity)
+      mostSimilarIssueTitles.append((number, similarity))
+
+    return mostSimilarIssueTitles
+  return w2v
