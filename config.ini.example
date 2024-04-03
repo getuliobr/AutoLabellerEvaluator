@@ -13,3 +13,6 @@ USERNAME=
 PASSWORD=
 CONNECTION_STRING=mongodb://localhost:27017/
 NAME=evaluator
+
+[OPENAI]
+API_KEY=

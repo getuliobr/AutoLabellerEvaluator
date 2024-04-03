@@ -1,49 +1,11 @@
-import pymongo
-from config import config
+from openai import OpenAI
+client = OpenAI()
 
-REPO = 'jabref/jabref'
-
-
-mongoClient = pymongo.MongoClient(config['DATABASE']['CONNECTION_STRING'])
-db = mongoClient[config['DATABASE']['NAME']]
-
-
-for repo in db.list_collection_names():
-  if repo.endswith('_results'):
-    continue
-  
-  collection = db[repo]
-
-  closedBefore = []
-
-  with collection.find({
-    'created_at': {
-      '$lte': '2019-12-31',
-    }
-  }, no_cursor_timeout=True) as search:
-
-    for issue in search: 
-      closedBefore.append(issue['number'])
-  
-  if not len(closedBefore):
-    continue
-  
-  possivelRecalcular = []
-  
-  resultsCollection = db[repo + '_results']
-  with resultsCollection.find({
-    'issues_sugeridas': {
-      '$elemMatch': {
-        '$elemMatch': {
-          '$in': closedBefore
-        }
-      },
-    }
-  }, no_cursor_timeout=True) as search:
-
-    for issue in search:
-      print(issue)
-      break
-      possivelRecalcular.append(issue['number'])
-  break
-  # print(repo, len(possivelRecalcular), possivelRecalcular[0])
+response = client.chat.completions.create(
+  model="gpt-3.5-turbo-0125",
+  response_format={ "type": "json_object" },
+  messages=[
+    {"role": "user", "content": "Pretend you are a developer for the jabref/jabref GitHub project and please give me just and only the code or code snippet you think would solve this issue: TITLE: <TÍTULO DA TAREFA> BODY: <CORPO DA TAREFA>}"}
+  ]
+)
+print(response.choices[0].message.content)

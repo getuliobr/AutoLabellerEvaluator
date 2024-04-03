@@ -23,7 +23,6 @@ for REPO in REPOS:
     }})
     for issue in gfiList:     
       number = issue['number']
-      dataDB.update_one({'number': number,})
       gfiResultList = resultsDB.find({'number': number, 'filtros.goodFirstIssue': 0})
       for gfi in gfiResultList:
         resultsDB.update_one({'_id': ObjectId(gfi['_id']) }, {'$set': { "filtros.goodFirstIssue" : 1  }}, upsert=False)
