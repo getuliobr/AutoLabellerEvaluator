@@ -1,7 +1,5 @@
 mongoContainer=$(awk -F "=" '/CONTAINER_NAME/ {print $2}' config.ini)
 
-echo $mongoContainer
-
 echo "Moving backup data to container"
 docker cp backup $mongoContainer:.
 echo "Restoring backup"

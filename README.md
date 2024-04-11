@@ -1,6 +1,6 @@
-Aqui contem o código fonte da ferramenta de coleta, sugestões e resultados de tarefas do GitHub.
+Aqui contém o código fonte da ferramenta de coleta, sugestões e resultados de tarefas do GitHub.
 
-No dataset disponibilizado (na pasta backup) temos os dados utilizados para o desenvolvimento do nosso trabalho, tais como as tarefas, dos 35 repositorios, mineradas, com o número dos pullrequests e arquivos que fecharam as tarefas. 
+No dataset disponibilizado (na pasta backup) temos os dados utilizados para o desenvolvimento do nosso trabalho, tais como as tarefas, dos 35 repositórios, mineradas, com o número dos pullrequests e arquivos que fecharam as tarefas. 
 
 # Preenchendo o arquivo de configuração
 
@@ -23,6 +23,10 @@ Nós utilizamos um container docker com a imagem do MongoDB para executar o trab
 Utilizamos o ChatGPT 3.5 e 4 para fazer gerar códigos para resolver as tarefas, é possível que os mesmos prompts gerem resultados diferentes. Os códigos gerados se encontram no dataset que nós disponibilizamos (na coleção do MongoDB: jabref/jabref_gpt_results).
 
 1. **API_KEY:** Sua chave de API do OpenAI.
+
+# Instalando o dataset
+
+Com o MongoDB e o arquivo de configuração preenchido só executar o comando `./loadBackup.sh`
 
 # Instalando dependências
 
@@ -59,16 +63,33 @@ Você pode instalar todas as bibliotecas com o comando: `pip3 install -r require
 
 Você pode minerar e rodar testes com o comando: `python3 main.py`. 
 
-Vai aparecer uma janela onde você configura os preprocessamentos e outras opções, sendo elas:
+Vai aparecer uma janela onde você configura os pré processamentos e outras opções, sendo elas:
 
+- **owner/repo:** O repositório a ser minerado, por exemplo: jabref/jabref ou godotengine/godot.
 - **K:** O TopK, separado por vírgula.
 - **Compare Data:** O que vai ser passado para os algoritmos de similaridade textual.
 - **Fetch from API:** Se vai minerar os dados do GitHub ou se vai utilizar dados já minerados.
 - **Use good first issues only:** Apenas tarefas boas para novatos vão ser testadas.
-- **Good First Issue label:** Alguns repositórios não utilizam o nome tudo em minusculo, ou, até mesmo, usam outros nomes como por exemplo: "tarefa fácil". Coloque o nome da etiqueta que o repositório usa aqui, isso irá marcar automaticamente se a tarefa é uma tarefa boa para novato nos resultados.
+- **Good First Issue label:** Alguns repositórios não utilizam o nome tudo em minúsculo, ou, até mesmo, usam outros nomes como por exemplo: "tarefa fácil". Coloque o nome da etiqueta que o repositório usa aqui, isso irá marcar automaticamente se a tarefa é uma tarefa boa para novato nos resultados.
 - **Start date:** Tarefas criadas apartir dessa data, fazem parte do grupo de teste.
 - **Days before:** Janela de tempo.
 - **Closed date:** Tarefas fechadas a partir dessa data vão ser mineradas.
 - **Strategy:** Qual algoritmo de similaridade textual vai usar.
 
-A lematização não está implementada.
+Acredito que as outras opções são autoexplicativas. A lematização não está implementada, não vai gerar resultados.
+
+Por fim, após configurar só apertar no botão submit que ele vai minerar os resultados e rodar os testes automaticamente.
+
+## Análises
+
+### Estatísticas
+
+Para conseguir o número de tarefas, prs, arquivos e testes, execute: `python3 count_issues.py`.
+
+### QP1 e QP2
+
+Para obter os resultados da QP1 e QP2 você vai rodar o script `python3 qp12.py`, caso queira apenas tarefas boas para novato descomente a linha 86.
+
+### QP3
+
+Só executar o comando `python3 qp3.py`.
