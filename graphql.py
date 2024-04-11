@@ -4,7 +4,6 @@ from config import config
 
 from compareAlgorithms.tfidf import get_tfidf_filtered
 from compareAlgorithms.sbert import get_sbert_embeddings
-from compareAlgorithms.word2vec import get_w2vGithub_embeddings, get_word2vec_embeddings
 
 def query(q):
     return requests.post(
@@ -162,8 +161,6 @@ def clean_up(setLowercase, removeLinks, removeDigits, removeStopWords):
     
         issue["tfidf"] = get_tfidf_filtered(issue)
         issue["sbert"] = get_sbert_embeddings(issue)
-        issue["word2vec"] = get_word2vec_embeddings(issue)
-        issue["w2vGithub"] = get_w2vGithub_embeddings(issue)
                 
         del issue["timelineItems"], issue["closedAt"], issue["createdAt"], issue["state"]
         return issue

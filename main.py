@@ -10,8 +10,6 @@ from compareAlgorithms.sbert import *
 from compareAlgorithms.tfidf import *
 from compareAlgorithms.word2vec import *
 
-from precision.average_precision import mapk, apk
-
 from getSolvedIssueData import getSolvedIssues
 import threading
 import datetime
@@ -132,7 +130,7 @@ class EvalutorWindow:
         self.startDateLabel.place(x=350, y=300)
         self.startDate = Entry(bd=3, width=20)
         self.startDate.place(x=500, y=300)
-        self.startDate.insert(0, '2020-06-01')
+        self.startDate.insert(0, '2020-07-01')
         
         self.daysBeforeLabel = Label(win, text='Days before')
         self.daysBeforeLabel.place(x=350, y=350)
@@ -312,13 +310,7 @@ class EvalutorWindow:
         for useK in k:
             self.saveResult(corpus, currIssue, ordered, useK, currSolvedBy)
     
-    def saveResult(self, corpus, currIssue, ordered, useK, currSolvedBy):
-        '''
-        data|repositorio|issue|#arquivos|topk|tecnica|mapk|min_sim|max_sim|mediana_sim|#acertos|#erros|arquivos_resolvidos_de_verdade|arquivos_sugestoes
-        
-        ultimas 3000 issues
-        '''
-        
+    def saveResult(self, corpus, currIssue, ordered, useK, currSolvedBy):      
         gfi = 1 if self.goodFirstIssueTagName.get() in corpus[currIssue]['labels'] else 0
         
         output = {
@@ -341,7 +333,7 @@ class EvalutorWindow:
                 'daysBefore': int(self.daysBefore.get()),
             },
             'arquivos_resolvidos_de_verdade': currSolvedBy,
-            'mapk': 0,
+            'mapk': 0, # Paramos de usar
             'min_sim': getFloatFromValue(ordered[useK - 1][1]),
             'max_sim': getFloatFromValue(ordered[0][1]),
             'mediana_sim': getFloatFromValue(ordered[useK // 2][1]),
@@ -355,7 +347,6 @@ class EvalutorWindow:
         if self.removeTextFiles.get():
             currSolvedBy = list(filter(lambda x: not x.lower().endswith(FILES_FORMAT), currSolvedBy))
             
-        apkArr = []
         for i in range(useK):
             currSugestion = ordered[i][0]
             currSimilarity = ordered[i][1]
@@ -365,15 +356,12 @@ class EvalutorWindow:
                 currSugestionFiles = list(filter(lambda x: not x.lower().endswith(FILES_FORMAT), currSugestionFiles))
             output['arquivos_sugeridos'].extend(currSugestionFiles)
             output['issues_sugeridas'].append([currSugestionNumber, currSimilarity])
-            currApk = apk(currSolvedBy, currSugestionFiles, len(currSolvedBy))
-            apkArr.append(currApk)
   
         
   
         output['arquivos_sugeridos'] = list(OrderedDict.fromkeys(output['arquivos_sugeridos']))
         output['acertos'] = len([x for x in output['arquivos_sugeridos'] if x in output['arquivos_resolvidos_de_verdade']])
         output['erros'] = len(output['arquivos_sugeridos']) - output['acertos']
-        output['mapk'] = np.mean(apkArr)
         
         self.outCollection.update_one({
                 'number': output['number'],
