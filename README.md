@@ -1,3 +1,3 @@
-# AutoLabellerEvaluator
+# Removido para anonimização
 
-Esse repositório contem o código fonte da ferramenta de coleta, sugestões e resultados de tarefas do GitHub
+Removido para anonimização
