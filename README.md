@@ -1,38 +1,40 @@
-Aqui contém o código fonte da ferramenta de coleta, sugestões e resultados de tarefas do GitHub.
+[![pt-br](https://img.shields.io/badge/lang-pt--br-green.svg)](./README.pt-br.md)
 
-No dataset disponibilizado (na pasta backup) temos os dados utilizados para o desenvolvimento do nosso trabalho, tais como as tarefas, dos 35 repositórios, mineradas, com o número dos pullrequests e arquivos que fecharam as tarefas. 
+Here contains the source code of the tool for collecting, suggesting and results of GitHub issues.
 
-# Preenchendo o arquivo de configuração
+In the dataset provided, we provide the data used for the development of our research, such as the issues from the 35 repositories mined, with the pull requests and files that closed the issues.
 
-Para replicar este trabalho ou minerar novos dados você vai precisar criar um arquivo `config.ini` seguindo o template presente em `config.ini.example`. Você vai precisar preencher os seguintes dados:
+# Filling the configuration file
 
-- Seção **GITHUB**:
+To replicate this research or mine new data, you will need to create a `config.ini` file following the template present in `config.ini.example`. You will need to fill in the following data:
 
-1. **TOKEN:** Você vai precisar criar um token de acesso [aqui](https://github.com/settings/tokens), para desenvolver este trabalho nós utilizamos o token clássico. Caso vá minerar dados apenas de projetos públicos não é necessário marcar nenhuma permissão.
+- **GITHUB**:
 
-- Seção **DATABASE**:
+1. **TOKEN:** You’ll need to create an access token [here](https://github.com/settings/tokens). For this paper, we used the classic token. If you’re only mining data from public projects, you don't need to enable any permissions.
 
-Nós utilizamos um container docker com a imagem do MongoDB para executar o trabalho.
+- **DATABASE**:
 
-1. **CONTAINER_NAME:** Nome do container do MongoDB, utilizado para fazer backup e restaurar o backup
-2. **CONNECTION_STRING:** String para conectar com o MongoDB, não testamos strings com usuário e senha, pode ser que não funcione.
-3. **NAME:** Nome do banco de dados no MongoDB, nos utilizamos o nome `evaluator`, caso altere é possível que tenha que renomear a pasta `evaluator`, dentro da pasta `backup`, para o nome passado.
+We used a Docker container with the MongoDB image to perform this research.
 
-- Seção **OPENAI**:
+1. **CONTAINER_NAME:** Name of the MongoDB container, used to make and restore backups.
+2. **CONNECTION_STRING:** String to connect to MongoDB. We haven’t tested strings that include the username and password, so they might not work.
+3. **NAME:** Name of the database in MongoDB. We used the name `evaluator`; if you change it, you may need to rename the `evaluator` folder inside the `backup` directory to match the new name.
 
-Utilizamos o ChatGPT 3.5 e 4 para fazer gerar códigos para resolver as tarefas, é possível que os mesmos prompts gerem resultados diferentes. Os códigos gerados se encontram no dataset que nós disponibilizamos (na coleção do MongoDB: jabref/jabref_gpt_results).
+- **OPENAI**:
 
-1. **API_KEY:** Sua chave de API do OpenAI.
+We used GPT 3.5 and 4 to generate code to solve the tasks. It's possible that the same prompts produce different results. The generated code is included in the dataset we provided (in the MongoDB collection: `jabref/jabref_gpt_results`).
 
-# Instalando o dataset
+1. **API_KEY:** Your OpenAI API key..
 
-Com o MongoDB e o arquivo de configuração preenchido só executar o comando `./loadBackup.sh`
+# Installing the dataset
 
-# Instalando dependências
+With MongoDB running and the configuration file filled out, simply run the command `./loadBackup.sh`.
 
-Desenvolvemos e executamos o estudo na versão do Python 3.10.8 e pip 23.1.2. 
+# Installing dependencies
 
-Utilizamos de algumas bibliotecas para desenvolver este trabalho, sendo elas:
+We developed and ran the study using Python version 3.10.8 and pip 23.1.2.
+
+We used several libraries to run this research, including:
 
 ```
 beautifulsoup4==4.12.3
@@ -55,41 +57,41 @@ torch==1.12.1+cu116
 unidiff==0.7.5
 ```
 
-Você pode instalar todas as bibliotecas com o comando: `pip3 install -r requirements.txt`
+You can install all libraries with the command: `pip3 install -r requirements.txt`.
 
-# Executando
+# Running
 
-## Minerando e rodando testes
+## Mining and running tests
 
-Você pode minerar e rodar testes com o comando: `python3 main.py`. 
+You can mine and run tests with the command: `python3 main.py`.
 
-Vai aparecer uma janela onde você configura os pré processamentos e outras opções, sendo elas:
+A window will appear where you can configure preprocessing and other options, such as:
 
-- **owner/repo:** O repositório a ser minerado, por exemplo: jabref/jabref ou godotengine/godot.
-- **K:** O TopK, separado por vírgula.
-- **Compare Data:** O que vai ser passado para os algoritmos de similaridade textual.
-- **Fetch from API:** Se vai minerar os dados do GitHub ou se vai utilizar dados já minerados.
-- **Use good first issues only:** Apenas tarefas boas para novatos vão ser testadas.
-- **Good First Issue label:** Alguns repositórios não utilizam o nome tudo em minúsculo, ou, até mesmo, usam outros nomes como por exemplo: "tarefa fácil". Coloque o nome da etiqueta que o repositório usa aqui, isso irá marcar automaticamente se a tarefa é uma tarefa boa para novato nos resultados.
-- **Start date:** Tarefas criadas apartir dessa data, fazem parte do grupo de teste.
-- **Days before:** Janela de tempo.
-- **Closed date:** Tarefas fechadas a partir dessa data vão ser mineradas.
-- **Strategy:** Qual algoritmo de similaridade textual vai usar.
+- **owner/repo:** The repository to mine, e.g., `jabref/jabref` or `godotengine/godot`.
+- **K:** The TopK values, separated by commas, e.g., `1,3` or `1,3,5`.
+- **Compare Data:** What will be passed to the text similarity algorithms.
+- **Fetch from API:** Whether to mine data from GitHub or use already-mined data.
+- **Use good first issues only:** Only good first issues will be tested.
+- **Good First Issue label:** Some repositories don't use lowercase labels or use different names like "easy task". Enter the label name used by the repo here. It will automatically mark the task as beginner-friendly in the results.
+- **Start date:** Issues created from this date onward are part of the test group.
+- **Days before:** Time window.
+- **Closed date:** Issues closed from this date onward will be mined.
+- **Strategy:** Which text similarity algorithm to use.
 
-Acredito que as outras opções são autoexplicativas. A lematização não está implementada, não vai gerar resultados.
+Lemmatization is not implemented and will not generate results.
 
-Por fim, após configurar só apertar no botão submit que ele vai minerar os resultados e rodar os testes automaticamente.
+Finally, after configuring, just press the `submit` button and it will mine the repository and run the tests automatically.
 
-## Análises
+## Analysis
 
-### Estatísticas
+### Statistics
 
-Para conseguir o número de tarefas, prs, arquivos e testes, execute: `python3 count_issues.py`.
+To get the number of issues, PRs, files, and tests, run: `python3 count_issues.py`.
 
-### QP1 e QP2
+### RQ1 and RQ2
 
-Para obter os resultados da QP1 e QP2 você vai rodar o script `python3 qp12.py`, caso queira apenas tarefas boas para novato descomente a linha 86.
+To obtain the results of QP1 and QP2, run the script: `python3 qp12.py`. If you only want good first issues, uncomment line 86.
 
-### QP3
+### RQ3
 
-Só executar o comando `python3 qp3.py`.
+Just run the command `python3 qp3.py`.
