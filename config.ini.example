@@ -7,4 +7,10 @@ CONNECTION_STRING=mongodb://localhost:27017/
 NAME=evaluator
 
 [OPENAI]
+BASE_URL=https://api.openai.com/v1
+MODEL=gpt-5.2
 API_KEY=
+
+[OLLAMA]
+BASE_URL=http://localhost:11434
+MODEL=gpt-oss:120b
