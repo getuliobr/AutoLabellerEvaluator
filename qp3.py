@@ -1,204 +1,189 @@
-from collections import defaultdict
-from codebleu import calc_codebleu
+"""
+qp4.py - SBERT semantic similarity between AI-generated code and actual PR diffs.
+
+For each issue in {repo}_ai_results, computes cosine similarity (all-MiniLM-L6-v2)
+between the LLM response and the actual code that fixed the issue (from {repo}_diff),
+for all 3 techniques: zeroshot, sbert, tfidf.
+
+Results are cached in {repo}_sbert_sim_results and plotted as a boxplot.
+"""
+
 from config import config
-import numpy as np
-import pymongo, requests
+import pymongo
+import requests as http_requests
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
+from sentence_transformers import SentenceTransformer, util
 from unidiff import PatchSet
+from tqdm import tqdm
 from statistics import mean, stdev
-from math import sqrt
+from math import sqrt, isnan
 
 mongoClient = pymongo.MongoClient(config['DATABASE']['CONNECTION_STRING'])
 db = mongoClient[config['DATABASE']['NAME']]
 
-def read_mongo(db, query={}, no_id=True):
-  cursor = db.find(query)
-  df =  pd.DataFrame(list(cursor))
-  if no_id:
-    del df['_id']
-  return df
-
-issueCollection = db['jabref/jabref']
-resultsCollection = db['jabref/jabref_results']
-
-diffCollection = db['jabref/jabref_diff']
-diffCodeCollection = db['jabref/jabref_diff_code_results']
-cacheCollection = db['jabref/jabref_cache_results']
-gptResultsCollection = db['jabref/jabref_gpt_results']
-codebleuResultsCollection = db['jabref/jabref_code_results']
-
-tecnicas = ['tfidf', 'sbert']
-diasAnteriores = [180]
-topks = [1]
-
-
-gpt3 = []
-gpt4 = []
-
-'''
-number: issue number NOT PR number
-'''
-def get_diff(number):
-  result = diffCollection.find_one({'number': number})
-  if result:
-    return result['diff']
-  
-  issue = issueCollection.find_one({'number': number})
-  diff = []
-  for pr in issue['prs']:
-    diffURL = f'https://patch-diff.githubusercontent.com/raw/jabref/jabref/pull/{pr}.diff'
-    diff.append(requests.get(diffURL).text)
-  
-  diffCollection.insert_one({'number': number, 'diff': diff})
-  return diff
-
-def get_code(number):
-  dbSearch = diffCodeCollection.find_one({'number': number})
-  if dbSearch:
-    return dbSearch['codes']
-  
-  codes = []
-  
-  diffs = get_diff(number)
-
-  for diff in diffs:
-    patch_set = PatchSet(diff)
-
-    for patched_file in patch_set:
-      FILES_FORMAT = ('.txt', '.md')
-      if patched_file.path.lower().endswith(FILES_FORMAT):
-        continue
-      code = ''.join([ line.value for hunk in patched_file for line in hunk ])
-      if len(code):
-        codes.append(code)
-  
-  diffCodeCollection.insert_one({'number': number, 'codes': codes})
-  return codes
-
-def codebleu(reference, diff):
-  cacheKey = f'{reference} {diff}'
-  result = cacheCollection.find_one({'key': cacheKey})
-  
-  if result:
-    return result['codebleu']
-  
-  result = calc_codebleu([reference], [diff], lang="java")['codebleu']
-  cacheCollection.insert_one({'key': cacheKey, 'codebleu': result})
-  return result
-
-for tecnica in tecnicas:    
-  for diaAnterior in diasAnteriores:
-    for topk in topks:
-      filtro = {"filtros.goodFirstIssue": 1, "number": {"$gte": 6678}, "topk": topk, "filtros.daysBefore": diaAnterior, "tecnica": tecnica}
-      recomendador = []
-      with resultsCollection.find(filtro) as results:
-        for i, issue in enumerate(results):
-          testNumber = issue['number']
-          if codebleuResultsCollection.find_one({
-            'tecnica': tecnica,
-            'number': testNumber,
-          }):
-            print(testNumber, 'this one is done')
-            continue
-
-          testCode = get_code(testNumber)
-          print(i, testNumber)
-          
-          suggestionCodes = []
-          for suggestionNumber, textSimilarity in issue['issues_sugeridas']:
-            suggestionCodes.extend(get_code(suggestionNumber))
-          
-          if not len(suggestionCodes):
-            continue
-                    
-          avgCodeBLEU = []
-          for reference in testCode:
-            for suggestion in suggestionCodes:
-              avgCodeBLEU.append(codebleu(reference, suggestion))
-
-          codebleuResultsCollection.insert_one({
-            'tecnica': tecnica,
-            'number': testNumber,
-            'mean': np.mean(avgCodeBLEU),
-          })
-      
-
-filtro = {"filtros.goodFirstIssue": 1, "number": {"$gte": 6678}, "topk": 1, "filtros.daysBefore": 180, "tecnica": "sbert"}
-
-def runGPT(testNumber, tecnica):
-  testCode = get_code(testNumber)
-  if codebleuResultsCollection.find_one({
-    'tecnica': tecnica,
-    'number': testNumber
-  }):
-    print(testNumber, 'this one is done')
-    return
-  
-  avgCodeBLEUGPT = []
-  for reference in testCode:
-    chatGPT = gptResultsCollection.find_one({'number': testNumber, 'model': tecnica})['response']
-    avgCodeBLEUGPT.append(codebleu(reference, chatGPT))
-  
-  codebleuResultsCollection.insert_one({
-    'tecnica': tecnica,
-    'number': testNumber,
-    'mean': np.mean(avgCodeBLEUGPT)
-  })
-
-with resultsCollection.find(filtro) as results:
-  for i, issue in enumerate(results):
-    testNumber = issue['number']
-    print(i, testNumber)
-    
-    runGPT(testNumber, 'gpt-3.5-turbo-0125')
-    runGPT(testNumber, 'gpt-4-turbo-preview')
-    
-df = read_mongo(codebleuResultsCollection)
-
-df['tecnica'].replace({
-  'tfidf': 'TF-IDF-180-1',
-  'sbert': 'SBERT-180-1',
-  'gpt-3.5-turbo-0125': 'GPT 3.5',
-  'gpt-4-turbo-preview': 'GPT 4',
-}, inplace=True)
-
-df['mean'] *= 100
-
-box = sns.boxplot(data=df, x="tecnica", y="mean")
-box.set_xlabel('Técnica')
-box.set_ylabel('CodeBLEU (%)')
-plt.savefig('artigo/boxplot.png')
-
-
-tecnica = df.groupby('tecnica')
-media = tecnica.describe()['mean']
-
-sbert = 1
-gpt35 = 1
-gpt4 = 1
-print(df['mean'].median())
-print(media)
-testes = {
-  'tfidf': df[df['tecnica'] == 'TF-IDF-180-1']['mean'].tolist(),
-  'sbert': df[df['tecnica'] == 'SBERT-180-1']['mean'].tolist(),
-  'gpt3': df[df['tecnica'] == 'GPT 3.5']['mean'].tolist(),
-  'gpt4': df[df['tecnica'] == 'GPT 4']['mean'].tolist()
+REPOS = {
+  'dotnet/aspnetcore': 'c_sharp',
+  'dotnet/efcore': 'c_sharp',
+  'dotnet/runtime': 'c_sharp',
+  'files-community/Files': 'c_sharp',
+  'apple/swift': 'cpp',
+  'azerothcore/azerothcore-wotlk': 'cpp',
+  'CleverRaven/Cataclysm-DDA': 'cpp',
+  'godotengine/godot': 'cpp',
+  'rizinorg/cutter': 'cpp',
+  'cosmos/cosmos-sdk': 'go',
+  'hashicorp/terraform-provider-aws': 'go',
+  'hashicorp/terraform-provider-azurerm': 'go',
+  'kubernetes/minikube': 'go',
+  'pingcap/tidb': 'go',
+  'apache/shardingsphere': 'java',
+  'elastic/elasticsearch': 'java',
+  'jabref/jabref': 'java',
+  'provectus/kafka-ui': 'java',
+  'trinodb/trino': 'java',
+  'PipedreamHQ/pipedream': 'javascript',
+  'ToolJet/ToolJet': 'javascript',
+  'vercel/next.js': 'javascript',
+  'WordPress/gutenberg': 'javascript',
+  'nextcloud/server': 'php',
+  'phpmyadmin/phpmyadmin': 'php',
+  'apache/airflow': 'python',
+  'pandas-dev/pandas': 'python',
+  'Qiskit/qiskit': 'python',
+  'scipy/scipy': 'python',
+  'zulip/zulip': 'python',
+  'appwrite/appwrite': 'typescript',
+  'aws/aws-cdk': 'typescript',
+  'elastic/kibana': 'typescript',
+  'mattermost/mattermost': 'typescript',
+  'microsoft/vscode': 'typescript',
 }
 
-print('sbert 180 1 median', df[df['tecnica'] == 'SBERT-180-1']['mean'].median())
-print(stats.kruskal(testes['tfidf'], testes['sbert'], testes['gpt3'], testes['gpt4']))
+TECNICAS = ['zeroshot', 'sbert', 'tfidf']
+
+print('Loading all-MiniLM-L6-v2...')
+sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
+
+
+def get_diff(repo, number):
+    diffCollection = db[f'{repo}_diff']
+    issueCollection = db[repo]
+
+    result = diffCollection.find_one({'number': number})
+    if result:
+        return '\n'.join(result['diff'])
+
+    issue = issueCollection.find_one({'number': number})
+    if not issue:
+        return []
+    diff = []
+    for pr in issue['prs']:
+        diffURL = f'https://patch-diff.githubusercontent.com/raw/{repo}/pull/{pr}.diff'
+        diff.append(http_requests.get(diffURL).text)
+    diffCollection.insert_one({'number': number, 'diff': diff})
+    return '\n'.join(diff)
+
+
+def sbert_similarity(text_a, text_b):
+    emb_a = sbert_model.encode(text_a, convert_to_tensor=True)
+    emb_b = sbert_model.encode(text_b, convert_to_tensor=True)
+    return float(util.pytorch_cos_sim(emb_a, emb_b)[0][0])
+
+# --- Phase 1: Compute and cache SBERT similarity ---
+for repo in REPOS:
+    print(f'\n=== Processing {repo} ===')
+    aiResultsCollection = db[f'{repo}_ai_results']
+    simResultsCollection = db[f'{repo}_sbert_sim_results']
+
+    for tecnica in TECNICAS:
+        docs = list(aiResultsCollection.find({'tecnica': tecnica}))
+        if not docs:
+            continue
+
+        for doc in tqdm(docs, desc=f'{repo} / {tecnica}'):
+            number = doc['number']
+
+            if simResultsCollection.find_one({'number': number, 'tecnica': tecnica}):
+                continue
+
+            reference_code = get_diff(repo, number)
+            sim = sbert_similarity(doc['response'], reference_code)
+
+            simResultsCollection.insert_one({
+                'number': number,
+                'tecnica': tecnica,
+                'model': doc.get('model', ''),
+                'similarity': sim,
+            })
+
+# --- Phase 2: Aggregate all results into a DataFrame ---
+all_dfs = []
+for repo in REPOS:
+    simResultsCollection = db[f'{repo}_sbert_sim_results']
+    docs = list(simResultsCollection.find({}, {'_id': 0}))
+    if docs:
+        repo_df = pd.DataFrame(docs)
+        repo_df['repo'] = repo
+        all_dfs.append(repo_df)
+
+if not all_dfs:
+    print('No results found. Run Phase 1 first.')
+    exit(1)
+
+df = pd.concat(all_dfs, ignore_index=True)
+
+df['tecnica'] = df['tecnica'].replace({
+    'zeroshot': 'Zero-shot',
+    'sbert': 'SBERT Few-shot',
+    'tfidf': 'TF-IDF Few-shot',
+})
+
+df['similarity'] *= 100  # Convert to percentage
+
+# --- Phase 3: Plot ---
+fig, ax = plt.subplots(figsize=(10, 6))
+sns.boxplot(
+    data=df,
+    x='tecnica',
+    y='similarity',
+    order=['Zero-shot', 'SBERT Few-shot', 'TF-IDF Few-shot'],
+    ax=ax,
+    flierprops=dict(marker='o', markersize=3, alpha=0.5, markeredgewidth=0.5),
+)
+ax.set_xlabel('Technique')
+ax.set_ylabel('SBERT Similarity (%)')
+ax.set_title('Semantic Similarity: LLM-Generated Code vs Actual PR Diff')
+plt.tight_layout()
+plt.savefig('artigo/boxplot_sbert.pdf')
+print('\nSaved artigo/boxplot_sbert.pdf')
+plt.show()
+
+# --- Phase 4: Statistics ---
+tecnica_groups = df.groupby('tecnica')
+print('\n=== Descriptive Statistics ===')
+print(tecnica_groups.describe()['similarity'])
+
+testes = {
+    label: [v for v in group['similarity'].tolist() if not isnan(v)]
+    for label, group in tecnica_groups
+}
+
+print('\n=== Kruskal-Wallis Test ===')
+print(stats.kruskal(*testes.values()))
+
 
 def cohens_d(c0, c1):
-  return (mean(c0) - mean(c1)) / (sqrt((stdev(c0) ** 2 + stdev(c1) ** 2) / 2))
+    return (mean(c0) - mean(c1)) / (sqrt((stdev(c0) ** 2 + stdev(c1) ** 2) / 2))
 
-for x_ in testes:
-  for y_ in testes:
-    print(x_, y_)
-    x = testes[x_]
-    y = testes[y_]
-    print('M1:', mean(x), stdev(x), len(x))
-    print('M2:', mean(y), stdev(y), len(y))
-    print(cohens_d(x, y))
+
+print('\n=== Cohen\'s d (pairwise) ===')
+labels = list(testes.keys())
+for i, x_ in enumerate(labels):
+    for y_ in labels[i + 1:]:
+        x, y = testes[x_], testes[y_]
+        print(f'{x_} vs {y_}: d = {cohens_d(x, y):.4f}  '
+              f'(M1={mean(x):.2f}±{stdev(x):.2f} n={len(x)}, '
+              f'M2={mean(y):.2f}±{stdev(y):.2f} n={len(y)})')
