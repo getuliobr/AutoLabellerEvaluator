@@ -64,6 +64,9 @@ def main():
         }):
             continue
 
+        if custom_id.startswith('aws/aws-cdk_26615'):
+            continue
+
         messages = req['body']['messages']
 
         try:

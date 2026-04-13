@@ -382,7 +382,7 @@ def retrieve(batch_id=None, few_shot=None, tecnica=None, topk=None, days_before=
             "Input tokens exceed the configured limit of 272000 tokens. Your messages resulted in 579340 tokens. Please reduce the length of the messages."
             continue
 
-        # parse "{repo}_{number}_{tecnica}_{topk}_{days_before}" - repo name may contain underscores,
+        # parse "{repo}_{number}_{few_shot}_{tecnica}_{topk}_{days_before}" - repo name may contain underscores,
         repo, number, few_shot, tecnica, topk, days_before = custom_id.rsplit('_', 5)
         number = int(number)
         few_shot = few_shot == 'True'
