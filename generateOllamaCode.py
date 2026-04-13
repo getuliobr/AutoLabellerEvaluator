@@ -43,18 +43,24 @@ def main():
         req = json.loads(line)
         custom_id = req['custom_id']
 
-        # parse "repo_number" - repo name may contain slashes/underscores,
-        # but number is always the last segment after _
-        parts = custom_id.rsplit('_', 1)
-        repo = parts[0]
-        number = int(parts[1])
+        # parse "{repo}_{number}_{few_shot}_{tecnica}_{topk}_{days_before}"
+        # repo name may contain slashes/underscores
+        repo, number, few_shot, tecnica, topk, days_before = custom_id.rsplit('_', 5)
+        number = int(number)
+        few_shot = few_shot == 'True'
+        topk = int(topk)
+        days_before = int(days_before)
 
         aiResultsCollection = db[f'{repo}_ai_results']
 
         # skip if already processed
         if aiResultsCollection.find_one({
             'number': number,
-            'model': MODEL
+            'model': MODEL,
+            'few_shot': few_shot,
+            'tecnica': tecnica,
+            'topk': topk,
+            'days_before': days_before
         }):
             continue
 
@@ -74,10 +80,18 @@ def main():
             aiResultsCollection.update_one({
                 'number': number,
                 'model': MODEL,
+                'few_shot': few_shot,
+                'tecnica': tecnica,
+                'topk': topk,
+                'days_before': days_before
             }, {'$set': {
                 'number': number,
                 'model': MODEL,
-                'response': ai_response
+                'response': ai_response,
+                'few_shot': few_shot,
+                'tecnica': tecnica,
+                'topk': topk,
+                'days_before': days_before
             }}, upsert=True)
             saved += 1
 

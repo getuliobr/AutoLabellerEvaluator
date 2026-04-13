@@ -137,8 +137,8 @@ df = pd.concat(all_dfs, ignore_index=True)
 
 df['tecnica'] = df['tecnica'].replace({
     'zeroshot': 'Zero-shot',
-    'sbert': 'SBERT Few-shot',
-    'tfidf': 'TF-IDF Few-shot',
+    'sbert': 'SBERT-180-1',
+    'tfidf': 'TFIDF-180-1',
 })
 
 df['similarity'] *= 100  # Convert to percentage
@@ -149,13 +149,12 @@ sns.boxplot(
     data=df,
     x='tecnica',
     y='similarity',
-    order=['Zero-shot', 'SBERT Few-shot', 'TF-IDF Few-shot'],
+    order=['Zero-shot', 'SBERT-180-1', 'TFIDF-180-1'],
     ax=ax,
     flierprops=dict(marker='o', markersize=3, alpha=0.5, markeredgewidth=0.5),
 )
 ax.set_xlabel('Technique')
-ax.set_ylabel('SBERT Similarity (%)')
-ax.set_title('Semantic Similarity: LLM-Generated Code vs Actual PR Diff')
+ax.set_ylabel('Cosine Similarity (%) (all-MiniLM-L6-v2)') 
 plt.tight_layout()
 plt.savefig('artigo/boxplot_sbert.pdf')
 print('\nSaved artigo/boxplot_sbert.pdf')
