@@ -19,6 +19,7 @@ client = OpenAI(
   base_url=config['OLLAMA']['BASE_URL'] + '/v1'
 )
 
+GEN_COUNT = 10
 MODEL = config['OLLAMA']['MODEL']
 INPUT_FILE = 'batch_input.jsonl'
 
@@ -70,33 +71,35 @@ def main():
         messages = req['body']['messages']
 
         try:
-            response = client.chat.completions.create(
-                model=MODEL,
-                seed=42,
-                temperature=0,
-                reasoning_effort='high',
-                messages=messages
-            )
+            for i in range(GEN_COUNT):
+                response = client.chat.completions.create(
+                    model=MODEL,
+                    temperature=0.7,
+                    reasoning_effort='high',
+                    messages=messages
+                )
 
-            ai_response = response.choices[0].message.content
+                ai_response = response.choices[0].message.content
 
-            aiResultsCollection.update_one({
-                'number': number,
-                'model': MODEL,
-                'few_shot': few_shot,
-                'tecnica': tecnica,
-                'topk': topk,
-                'days_before': days_before
-            }, {'$set': {
-                'number': number,
-                'model': MODEL,
-                'response': ai_response,
-                'few_shot': few_shot,
-                'tecnica': tecnica,
-                'topk': topk,
-                'days_before': days_before
-            }}, upsert=True)
-            saved += 1
+                aiResultsCollection.update_one({
+                    'number': number,
+                    'model': MODEL,
+                    'generation': i,
+                    'few_shot': few_shot,
+                    'tecnica': tecnica,
+                    'topk': topk,
+                    'days_before': days_before
+                }, {'$set': {
+                    'number': number,
+                    'model': MODEL,
+                    'generation': i,
+                    'response': ai_response,
+                    'few_shot': few_shot,
+                    'tecnica': tecnica,
+                    'topk': topk,
+                    'days_before': days_before
+                }}, upsert=True)
+                saved += 1
 
         except Exception as e:
             print(f'\n  Error for {custom_id}: {e}')
