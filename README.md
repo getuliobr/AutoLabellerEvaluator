@@ -38,7 +38,6 @@ We used several libraries to run this research, including:
 
 ```
 beautifulsoup4==4.12.3
-codebleu==0.6.0
 gensim==4.2.0
 matplotlib==3.6.2
 nltk==3.7

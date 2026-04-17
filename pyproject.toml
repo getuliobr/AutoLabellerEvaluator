@@ -1,0 +1,32 @@
+[project]
+name = "auto-labeller-evaluator"
+version = "0.1.0"
+description = "Research tool for evaluating automated GitHub issue labeling and file recommendation"
+requires-python = "==3.10.8"
+dependencies = [
+    "beautifulsoup4==4.12.3",
+    "gensim==4.2.0",
+    "matplotlib==3.6.2",
+    "nltk==3.7",
+    "numpy==1.23.5",
+    "octokit==0.0.1",
+    "octokitpy==0.15.0",
+    "openai==1.16.2",
+    "pandas==1.5.1",
+    "pymongo==4.3.3",
+    "requests==2.25.1",
+    "scikit-learn==1.4.1.post1",
+    "scipy==1.13.0",
+    "seaborn==0.13.2",
+    "sentence-transformers==2.2.2",
+    "torch==1.12.1+cu116",
+    "unidiff==0.7.5",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu131" }
+
+[[tool.uv.index]]
+name = "pytorch-cu131"
+url = "https://download.pytorch.org/whl/cu131"
+explicit = true

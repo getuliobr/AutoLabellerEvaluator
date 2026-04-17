@@ -1,6 +1,6 @@
 Aqui contém o código fonte da ferramenta de coleta, sugestões e resultados de tarefas do GitHub.
 
-No dataset disponibilizado (na pasta backup) temos os dados utilizados para o desenvolvimento do nosso trabalho, tais como as tarefas, dos 35 repositórios, mineradas, com o número dos pullrequests e arquivos que fecharam as tarefas. 
+No dataset disponibilizado (na pasta backup) temos os dados utilizados para o desenvolvimento do nosso trabalho, tais como as tarefas, dos 35 repositórios, mineradas, com o número dos pullrequests e arquivos que fecharam as tarefas.
 
 # Preenchendo o arquivo de configuração
 
@@ -30,13 +30,12 @@ Com o MongoDB e o arquivo de configuração preenchido só executar o comando `.
 
 # Instalando dependências
 
-Desenvolvemos e executamos o estudo na versão do Python 3.10.8 e pip 23.1.2. 
+Desenvolvemos e executamos o estudo na versão do Python 3.10.8 e pip 23.1.2.
 
 Utilizamos de algumas bibliotecas para desenvolver este trabalho, sendo elas:
 
 ```
 beautifulsoup4==4.12.3
-codebleu==0.6.0
 gensim==4.2.0
 matplotlib==3.6.2
 nltk==3.7
@@ -61,7 +60,7 @@ Você pode instalar todas as bibliotecas com o comando: `pip3 install -r require
 
 ## Minerando e rodando testes
 
-Você pode minerar e rodar testes com o comando: `python3 main.py`. 
+Você pode minerar e rodar testes com o comando: `python3 main.py`.
 
 Vai aparecer uma janela onde você configura os pré processamentos e outras opções, sendo elas:
 
