@@ -10,7 +10,6 @@ Results are cached in {repo}_sbert_sim_results and plotted as a boxplot.
 
 from config import config
 import pymongo
-import requests as http_requests
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -20,6 +19,9 @@ from unidiff import PatchSet
 from tqdm import tqdm
 from statistics import mean, stdev
 from math import sqrt, isnan
+
+from github_diff import get_diff
+import github_diff
 
 mongoClient = pymongo.MongoClient(config['DATABASE']['CONNECTION_STRING'])
 db = mongoClient[config['DATABASE']['NAME']]
@@ -68,25 +70,6 @@ print('Loading all-MiniLM-L6-v2...')
 sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
 
 
-def get_diff(repo, number):
-    diffCollection = db[f'{repo}_diff']
-    issueCollection = db[repo]
-
-    result = diffCollection.find_one({'number': number})
-    if result:
-        return '\n'.join(result['diff'])
-
-    issue = issueCollection.find_one({'number': number})
-    if not issue:
-        return []
-    diff = []
-    for pr in issue['prs']:
-        diffURL = f'https://patch-diff.githubusercontent.com/raw/{repo}/pull/{pr}.diff'
-        diff.append(http_requests.get(diffURL).text)
-    diffCollection.insert_one({'number': number, 'diff': diff})
-    return '\n'.join(diff)
-
-
 def sbert_similarity(text_a, text_b):
     emb_a = sbert_model.encode(text_a, convert_to_tensor=True)
     emb_b = sbert_model.encode(text_b, convert_to_tensor=True)
@@ -105,19 +88,34 @@ for repo in REPOS:
 
         for doc in tqdm(docs, desc=f'{repo} / {tecnica}'):
             number = doc['number']
+            '''        
+            [github_diff] dotnet/runtime#4938: 404 (PR missing/transferred)
+            [github_diff] appwrite/appwrite#319: 404 (PR missing/transferred)
+            [github_diff] mattermost/mattermost#7786: 404 (PR missing/transferred)
+            '''
+            if repo == 'dotnet/runtime' and number == 4938:
+                continue
+            if repo == 'appwrite/appwrite' and number == 319:
+                continue
+            if repo == 'mattermost/mattermost' and number == 7786:
+                continue
 
             if simResultsCollection.find_one({'number': number, 'tecnica': tecnica}):
                 continue
 
-            reference_code = get_diff(repo, number)
+            diff_list, _ = get_diff(repo, number, db)
+            reference_code = '\n'.join(diff_list)
             sim = sbert_similarity(doc['response'], reference_code)
 
-            simResultsCollection.insert_one({
+            simResultsCollection.update_one({
                 'number': number,
-                'tecnica': tecnica,
-                'model': doc.get('model', ''),
-                'similarity': sim,
-            })
+                'tecnica': tecnica
+            }, {
+                '$set': {
+                    'model': doc.get('model', ''),
+                    'similarity': sim,
+                }
+            }, upsert=True)
 
 # --- Phase 2: Aggregate all results into a DataFrame ---
 all_dfs = []

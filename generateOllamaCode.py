@@ -7,6 +7,7 @@ Usage:
 """
 
 from config import config
+import glob
 import pymongo
 import json
 import os
@@ -21,21 +22,26 @@ client = OpenAI(
 
 GEN_COUNT = 10
 MODEL = config['OLLAMA']['MODEL']
-INPUT_FILE = 'batch_input.jsonl'
+INPUT_FILE_PREFIX = 'batch_input_'
 
 mongoClient = pymongo.MongoClient(config['DATABASE']['CONNECTION_STRING'])
 db = mongoClient[config['DATABASE']['NAME']]
 
 
 def main():
-    if not os.path.exists(INPUT_FILE):
-        print(f'{INPUT_FILE} not found. Run generateGPTCode.py submit first.')
+    input_files = sorted(glob.glob(f'{INPUT_FILE_PREFIX}*.jsonl'))
+    if not input_files:
+        print(f'No {INPUT_FILE_PREFIX}*.jsonl files found. Run generateGPTCode.py submit first.')
         return
 
-    with open(INPUT_FILE, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
+    lines = []
+    for fname in input_files:
+        with open(fname, 'r', encoding='utf-8') as f:
+            file_lines = f.readlines()
+        print(f'Loaded {len(file_lines)} requests from {fname}')
+        lines.extend(file_lines)
 
-    print(f'Loaded {len(lines)} requests from {INPUT_FILE}')
+    print(f'Total: {len(lines)} requests across {len(input_files)} file(s)')
 
     saved = 0
     errors = 0
@@ -75,8 +81,8 @@ def main():
                 response = client.chat.completions.create(
                     model=MODEL,
                     temperature=0.7,
-                    reasoning_effort='high',
-                    messages=messages
+                    messages=messages,
+                    extra_body={'think': True}
                 )
 
                 ai_response = response.choices[0].message.content
