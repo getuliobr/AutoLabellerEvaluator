@@ -4,3 +4,5 @@ config.ini
 /backup/
 *.model*
 *.jsonl
+venv/
+.venv/
