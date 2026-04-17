@@ -12,6 +12,7 @@ dependencies = [
     "octokit==0.0.1",
     "octokitpy==0.15.0",
     "openai==1.16.2",
+    "httpx<0.28",
     "pandas==1.5.1",
     "pymongo==4.3.3",
     "requests==2.25.1",
