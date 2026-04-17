@@ -1,6 +1,6 @@
 """
-Reads batch_input.jsonl and generates responses using Ollama's
-OpenAI-compatible API, saving results to MongoDB.
+Reads batch_input_*.jsonl and generates responses using Ollama's
+OpenAI-compatible API, appending results to a JSONL output file.
 
 Usage:
   python generateOllamaCode.py
@@ -8,12 +8,21 @@ Usage:
 
 from config import config
 import glob
-import pymongo
+import logging
 import json
 import os
+import sys
 
 from openai import OpenAI
 from tqdm import tqdm
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    stream=sys.stdout,
+)
+log = logging.getLogger('generateOllamaCode')
 
 client = OpenAI(
   api_key='ollama',
@@ -23,30 +32,59 @@ client = OpenAI(
 GEN_COUNT = 10
 MODEL = config['OLLAMA']['MODEL']
 INPUT_FILE_PREFIX = 'batch_input_'
+OUTPUT_FILE = 'ollama_output.jsonl'
+LOG_EVERY = 25  # log progress every N requests when stdout isn't a tty (nohup)
 
-mongoClient = pymongo.MongoClient(config['DATABASE']['CONNECTION_STRING'])
-db = mongoClient[config['DATABASE']['NAME']]
+
+def load_processed_keys(path):
+    """Return set of (custom_id, generation) tuples already in OUTPUT_FILE."""
+    keys = set()
+    if not os.path.exists(path):
+        return keys
+    with open(path, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+                keys.add((rec['custom_id'], rec['generation']))
+            except (json.JSONDecodeError, KeyError):
+                continue
+    return keys
 
 
 def main():
     input_files = sorted(glob.glob(f'{INPUT_FILE_PREFIX}*.jsonl'))
     if not input_files:
-        print(f'No {INPUT_FILE_PREFIX}*.jsonl files found. Run generateGPTCode.py submit first.')
+        log.error('No %s*.jsonl files found. Run generateGPTCode.py submit first.', INPUT_FILE_PREFIX)
         return
 
     lines = []
     for fname in input_files:
         with open(fname, 'r', encoding='utf-8') as f:
             file_lines = f.readlines()
-        print(f'Loaded {len(file_lines)} requests from {fname}')
+        log.info('Loaded %d requests from %s', len(file_lines), fname)
         lines.extend(file_lines)
 
-    print(f'Total: {len(lines)} requests across {len(input_files)} file(s)')
+    total = len(lines)
+    log.info('Total: %d requests across %d file(s)', total, len(input_files))
+
+    processed = load_processed_keys(OUTPUT_FILE)
+    if processed:
+        log.info('Found %d existing records in %s; will skip those', len(processed), OUTPUT_FILE)
 
     saved = 0
     errors = 0
+    skipped = 0
 
-    for line in tqdm(lines, desc='Processing with Ollama'):
+    is_tty = sys.stdout.isatty()
+    iterator = tqdm(lines, desc='Processing with Ollama') if is_tty else lines
+
+    out_f = open(OUTPUT_FILE, 'a', encoding='utf-8')
+    log.info('Appending responses to %s', OUTPUT_FILE)
+
+    for idx, line in enumerate(iterator, start=1):
         req = json.loads(line)
         custom_id = req['custom_id']
 
@@ -58,26 +96,24 @@ def main():
         topk = int(topk)
         days_before = int(days_before)
 
-        aiResultsCollection = db[f'{repo}_ai_results']
-
-        # skip if already processed
-        if aiResultsCollection.find_one({
-            'number': number,
-            'model': MODEL,
-            'few_shot': few_shot,
-            'tecnica': tecnica,
-            'topk': topk,
-            'days_before': days_before
-        }):
+        if custom_id.startswith('aws/aws-cdk_26615'):
+            skipped += 1
             continue
 
-        if custom_id.startswith('aws/aws-cdk_26615'):
+        # skip if all generations already in output file
+        if all((custom_id, i) in processed for i in range(GEN_COUNT)):
+            skipped += 1
+            if not is_tty and idx % LOG_EVERY == 0:
+                log.info('Progress %d/%d saved=%d skipped=%d errors=%d', idx, total, saved, skipped, errors)
             continue
 
         messages = req['body']['messages']
 
         try:
             for i in range(GEN_COUNT):
+                if (custom_id, i) in processed:
+                    continue
+
                 response = client.chat.completions.create(
                     model=MODEL,
                     temperature=0.7,
@@ -87,15 +123,9 @@ def main():
 
                 ai_response = response.choices[0].message.content
 
-                aiResultsCollection.update_one({
-                    'number': number,
-                    'model': MODEL,
-                    'generation': i,
-                    'few_shot': few_shot,
-                    'tecnica': tecnica,
-                    'topk': topk,
-                    'days_before': days_before
-                }, {'$set': {
+                record = {
+                    'custom_id': custom_id,
+                    'repo': repo,
                     'number': number,
                     'model': MODEL,
                     'generation': i,
@@ -103,16 +133,24 @@ def main():
                     'few_shot': few_shot,
                     'tecnica': tecnica,
                     'topk': topk,
-                    'days_before': days_before
-                }}, upsert=True)
+                    'days_before': days_before,
+                }
+
+                out_f.write(json.dumps(record, ensure_ascii=False) + '\n')
+                out_f.flush()
+                processed.add((custom_id, i))
                 saved += 1
 
         except Exception as e:
-            print(f'\n  Error for {custom_id}: {e}')
+            log.exception('Error for %s: %s', custom_id, e)
             errors += 1
             continue
 
-    print(f'\nDone! Saved {saved} results, {errors} errors.')
+        if not is_tty and idx % LOG_EVERY == 0:
+            log.info('Progress %d/%d saved=%d skipped=%d errors=%d', idx, total, saved, skipped, errors)
+
+    out_f.close()
+    log.info('Done! saved=%d skipped=%d errors=%d', saved, skipped, errors)
 
 
 if __name__ == '__main__':
