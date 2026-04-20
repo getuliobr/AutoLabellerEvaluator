@@ -312,6 +312,10 @@ def submit(dry_run=False):
         sample_idx = random.sample(range(stratum_size), nh)
         sampled_issues.extend((repo, repo_issues[i]) for i in sample_idx)
         print(f'{repo:<50} {stratum_size:>10} {nh:>8}')
+    
+    with open('sampled_issues.json', 'w', encoding='utf-8') as f:
+        json.dump(sampled_issues, f, indent=2)
+    return
 
     print('-' * 70)
     sampled_count = len(sampled_issues)

@@ -66,6 +66,23 @@ REPOS = {
 
 TECNICAS = ['zeroshot', 'sbert', 'tfidf']
 
+# If an issue is in this set, drop it for ALL tecnicas (zeroshot, sbert, tfidf) and all models.
+# Covers both reference-PR-diff failures and few-shot-suggestion-diff failures.
+SKIP_ISSUES = {
+    ('dotnet/runtime', 42838),          # err when running qp3
+    ('appwrite/appwrite', 5150),        # err when running qp3
+    ('mattermost/mattermost', 16149),   # err when running qp3
+    ('aws/aws-cdk', 26616),             # err when generating on gpt5.2 (too many tokens)
+    ('aws/aws-cdk', 13403),             # err couldnt find pr
+    ('aws/aws-cdk', 26615),             # err couldnt find pr
+    ('nextcloud/server', 24549),        # err couldnt find pr
+    ('mattermost/mattermost', 17293),   # err couldnt find pr
+    ('mattermost/mattermost', 24290),   # err couldnt find pr
+    ('mattermost/mattermost', 21162),   # err couldnt find pr
+    ('mattermost/mattermost', 15455),   # err couldnt find pr
+    ('mattermost/mattermost', 23427),   # err couldnt find pr
+}
+
 print('Loading all-MiniLM-L6-v2...')
 sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
 
@@ -88,19 +105,12 @@ for repo in REPOS:
 
         for doc in tqdm(docs, desc=f'{repo} / {tecnica}'):
             number = doc['number']
-            '''        
-            [github_diff] dotnet/runtime#4938: 404 (PR missing/transferred)
-            [github_diff] appwrite/appwrite#319: 404 (PR missing/transferred)
-            [github_diff] mattermost/mattermost#7786: 404 (PR missing/transferred)
-            '''
-            if repo == 'dotnet/runtime' and number == 4938:
-                continue
-            if repo == 'appwrite/appwrite' and number == 319:
-                continue
-            if repo == 'mattermost/mattermost' and number == 7786:
+            model = doc.get('model', '')
+
+            if (repo, number) in SKIP_ISSUES:
                 continue
 
-            if simResultsCollection.find_one({'number': number, 'tecnica': tecnica}):
+            if simResultsCollection.find_one({'number': number, 'tecnica': tecnica, 'model': model}):
                 continue
 
             diff_list, _ = get_diff(repo, number, db)
@@ -109,10 +119,10 @@ for repo in REPOS:
 
             simResultsCollection.update_one({
                 'number': number,
-                'tecnica': tecnica
+                'tecnica': tecnica,
+                'model': model,
             }, {
                 '$set': {
-                    'model': doc.get('model', ''),
                     'similarity': sim,
                 }
             }, upsert=True)
@@ -133,54 +143,84 @@ if not all_dfs:
 
 df = pd.concat(all_dfs, ignore_index=True)
 
+# Defensive: drop any stale cached rows that now fall under the skip list.
+df = df[~df.apply(lambda r: (r['repo'], r['number']) in SKIP_ISSUES, axis=1)]
+
 df['tecnica'] = df['tecnica'].replace({
     'zeroshot': 'Zero-shot',
     'sbert': 'SBERT-180-1',
     'tfidf': 'TFIDF-180-1',
 })
 
-df['similarity'] *= 100  # Convert to percentage
+# df['similarity'] *= 100  # Convert to percentage
 
 # --- Phase 3: Plot ---
-fig, ax = plt.subplots(figsize=(10, 6))
-sns.boxplot(
+# fig, ax = plt.subplots(figsize=(10, 6))
+ax = sns.boxplot(
     data=df,
     x='tecnica',
     y='similarity',
+    hue='model',
     order=['Zero-shot', 'SBERT-180-1', 'TFIDF-180-1'],
-    ax=ax,
+    # ax=ax,
     flierprops=dict(marker='o', markersize=3, alpha=0.5, markeredgewidth=0.5),
 )
 ax.set_xlabel('Technique')
-ax.set_ylabel('Cosine Similarity (%) (all-MiniLM-L6-v2)') 
+ax.set_ylabel('Cosine Similarity') 
 plt.tight_layout()
 plt.savefig('artigo/boxplot_sbert.pdf')
 print('\nSaved artigo/boxplot_sbert.pdf')
 plt.show()
 
 # --- Phase 4: Statistics ---
-tecnica_groups = df.groupby('tecnica')
-print('\n=== Descriptive Statistics ===')
-print(tecnica_groups.describe()['similarity'])
-
-testes = {
-    label: [v for v in group['similarity'].tolist() if not isnan(v)]
-    for label, group in tecnica_groups
-}
-
-print('\n=== Kruskal-Wallis Test ===')
-print(stats.kruskal(*testes.values()))
+print('\n=== Descriptive Statistics (tecnica x model) ===')
+print(df.groupby(['tecnica', 'model']).describe()['similarity'])
 
 
 def cohens_d(c0, c1):
     return (mean(c0) - mean(c1)) / (sqrt((stdev(c0) ** 2 + stdev(c1) ** 2) / 2))
 
 
-print('\n=== Cohen\'s d (pairwise) ===')
-labels = list(testes.keys())
-for i, x_ in enumerate(labels):
-    for y_ in labels[i + 1:]:
-        x, y = testes[x_], testes[y_]
-        print(f'{x_} vs {y_}: d = {cohens_d(x, y):.4f}  '
-              f'(M1={mean(x):.2f}±{stdev(x):.2f} n={len(x)}, '
-              f'M2={mean(y):.2f}±{stdev(y):.2f} n={len(y)})')
+for model in sorted(df['model'].unique()):
+    print(f'\n===== Model: {model} =====')
+    model_df = df[df['model'] == model]
+    tecnica_groups = model_df.groupby('tecnica')
+
+    testes = {
+        label: [v for v in group['similarity'].tolist() if not isnan(v)]
+        for label, group in tecnica_groups
+    }
+    if len(testes) < 2:
+        print('  not enough tecnica groups for tests')
+        continue
+
+    print('  --- Kruskal-Wallis (across tecnicas) ---')
+    print(f'  {stats.kruskal(*testes.values())}')
+
+    print("  --- Cohen's d (pairwise across tecnicas) ---")
+    labels = list(testes.keys())
+    for i, x_ in enumerate(labels):
+        for y_ in labels[i + 1:]:
+            x, y = testes[x_], testes[y_]
+            print(f'  {x_} vs {y_}: d = {cohens_d(x, y):.4f}  '
+                  f'(M1={mean(x):.2f}±{stdev(x):.2f} n={len(x)}, '
+                  f'M2={mean(y):.2f}±{stdev(y):.2f} n={len(y)})')
+
+print('\n===== Per-tecnica: model comparison =====')
+for tecnica in sorted(df['tecnica'].unique()):
+    tec_df = df[df['tecnica'] == tecnica]
+    model_groups = {
+        m: [v for v in g['similarity'].tolist() if not isnan(v)]
+        for m, g in tec_df.groupby('model')
+    }
+    if len(model_groups) < 2:
+        continue
+    print(f'\n  --- {tecnica} ---')
+    print(f'  Kruskal-Wallis: {stats.kruskal(*model_groups.values())}')
+    ms = list(model_groups.keys())
+    for i, a in enumerate(ms):
+        for b in ms[i + 1:]:
+            x, y = model_groups[a], model_groups[b]
+            print(f'  {a} vs {b}: d = {cohens_d(x, y):.4f}  '
+                  f'(M1={mean(x):.2f}±{stdev(x):.2f} n={len(x)}, '
+                  f'M2={mean(y):.2f}±{stdev(y):.2f} n={len(y)})')

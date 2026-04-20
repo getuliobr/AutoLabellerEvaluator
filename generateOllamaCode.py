@@ -29,7 +29,7 @@ client = OpenAI(
   base_url=config['OLLAMA']['BASE_URL'] + '/v1'
 )
 
-GEN_COUNT = 10
+GEN_COUNT = 1
 MODEL = config['OLLAMA']['MODEL']
 INPUT_FILE_PREFIX = 'batch_input_'
 OUTPUT_FILE = 'ollama_output.jsonl'
