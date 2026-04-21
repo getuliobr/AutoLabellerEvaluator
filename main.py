@@ -1,6 +1,3 @@
-import csv
-import re
-from string import digits
 from tkinter import *
 from tkinter.ttk import Progressbar
 
@@ -13,9 +10,6 @@ from compareAlgorithms.word2vec import *
 from getSolvedIssueData import getSolvedIssues
 import threading
 import datetime
-
-from torch import Tensor
-
 
 from collections import OrderedDict
 

@@ -22,9 +22,16 @@ We used a Docker container with the MongoDB image to perform this research.
 
 - **OPENAI**:
 
-We used GPT 3.5 and 4 to generate code to solve the tasks. It's possible that the same prompts produce different results. The generated code is included in the dataset we provided (in the MongoDB collection: `jabref/jabref_gpt_results`).
+We used GPT 5.2 to generate code diffs used to solve the issues. It's possible that the same prompts produce different results.
 
 1. **API_KEY:** Your OpenAI API key..
+
+- **OLLAMA**:
+
+We used qwen3.6:35b and gpt-oss:120b (high, medium) to generate code diffs used to solve the tasks. It's possible that the same prompts produce different results.
+
+1. **BASE_URL**: Ollama base url. e.g.: http://localhost:11434
+2. **MODEL**: Ollama model name. e.g.: gpt-oss:120b
 
 # Installing the dataset
 
@@ -37,23 +44,21 @@ We developed and ran the study using Python version 3.10.8 and pip 23.1.2.
 We used several libraries to run this research, including:
 
 ```
-beautifulsoup4==4.12.3
-gensim==4.2.0
-matplotlib==3.6.2
-nltk==3.7
-numpy==1.23.5
-octokit==0.0.1
-octokitpy==0.15.0
-openai==1.16.2
-pandas==1.5.1
-pymongo==4.3.3
-requests==2.25.1
-scikit_learn==1.4.1.post1
-scipy==1.13.0
+beautifulsoup4==4.14.3
+gensim==4.4.0
+matplotlib==3.10.8
+nltk==3.9.4
+numpy==2.4.4
+openai==2.32.0
+pandas==3.0.2
+pymongo==4.17.0
+Requests==2.33.1
+scikit_learn==1.8.0
+scipy==1.17.1
 seaborn==0.13.2
-sentence_transformers==2.2.2
-torch==1.12.1+cu116
-unidiff==0.7.5
+sentence_transformers==5.4.0
+torch==2.9.0
+tqdm==4.67.1
 ```
 
 You can install all libraries with the command: `pip3 install -r requirements.txt`.

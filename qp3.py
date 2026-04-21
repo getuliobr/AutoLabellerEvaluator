@@ -15,13 +15,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
 from sentence_transformers import SentenceTransformer, util
-from unidiff import PatchSet
 from tqdm import tqdm
 from statistics import mean, stdev
 from math import sqrt, isnan
 
 from github_diff import get_diff
-import github_diff
 
 mongoClient = pymongo.MongoClient(config['DATABASE']['CONNECTION_STRING'])
 db = mongoClient[config['DATABASE']['NAME']]
@@ -224,3 +222,18 @@ for tecnica in sorted(df['tecnica'].unique()):
             print(f'  {a} vs {b}: d = {cohens_d(x, y):.4f}  '
                   f'(M1={mean(x):.2f}±{stdev(x):.2f} n={len(x)}, '
                   f'M2={mean(y):.2f}±{stdev(y):.2f} n={len(y)})')
+
+print('\n===== Cross (tecnica, model) pairwise Cohen\'s d =====')
+combo_groups = {
+    (tec, mdl): [v for v in g['similarity'].tolist() if not isnan(v)]
+    for (tec, mdl), g in df.groupby(['tecnica', 'model'])
+}
+combos = sorted(combo_groups.keys())
+for i, a in enumerate(combos):
+    for b in combos[i + 1:]:
+        x, y = combo_groups[a], combo_groups[b]
+        if len(x) < 2 or len(y) < 2:
+            continue
+        print(f'  {a[0]}/{a[1]} vs {b[0]}/{b[1]}: d = {cohens_d(x, y):.4f}  '
+              f'(M1={mean(x):.2f}±{stdev(x):.2f} n={len(x)}, '
+              f'M2={mean(y):.2f}±{stdev(y):.2f} n={len(y)})')

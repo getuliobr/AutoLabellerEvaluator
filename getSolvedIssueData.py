@@ -1,16 +1,4 @@
-import json
-
-from bs4 import BeautifulSoup
-import requests
-
-from octokit import Octokit
-
 from pymongo.collection import Collection
-
-from config import config
-import re
-import time
-
 from graphql import get_issues
 
 def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection, closedDate='2000-01-01', setLowercase=False, removeLinks=False, removeDigits=False, removeStopWords=False):
