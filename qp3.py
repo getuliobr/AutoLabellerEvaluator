@@ -150,6 +150,10 @@ df['tecnica'] = df['tecnica'].replace({
     'tfidf': 'TFIDF-180-1',
 })
 
+df['model'] = df['model'].replace({
+    'gpt-oss:120b': 'gpt-oss:120b_high',
+})
+
 # df['similarity'] *= 100  # Convert to percentage
 
 # --- Phase 3: Plot ---
@@ -173,6 +177,19 @@ plt.show()
 # --- Phase 4: Statistics ---
 print('\n=== Descriptive Statistics (tecnica x model) ===')
 print(df.groupby(['tecnica', 'model']).describe()['similarity'])
+
+rows = [('Technique', 'LLM', 'Min', 'Mean', 'Max')]
+
+for tecnica in df['tecnica'].unique():
+    tec_df = df[df['tecnica'] == tecnica]
+    agg = tec_df.groupby('model')['similarity'].agg(['min', 'mean', 'max']).reset_index()
+    for _, row in agg.iterrows():
+        rows.append((tecnica, row['model'], f"{row['min']:.4f}", f"{row['mean']:.4f}", f"{row['max']:.4f}"))
+
+import csv, io
+buf = io.StringIO()
+csv.writer(buf).writerows(rows)
+print(buf.getvalue())
 
 
 def cohens_d(c0, c1):
@@ -234,6 +251,8 @@ for i, a in enumerate(combos):
         x, y = combo_groups[a], combo_groups[b]
         if len(x) < 2 or len(y) < 2:
             continue
-        print(f'  {a[0]}/{a[1]} vs {b[0]}/{b[1]}: d = {cohens_d(x, y):.4f}  '
-              f'(M1={mean(x):.2f}±{stdev(x):.2f} n={len(x)}, '
-              f'M2={mean(y):.2f}±{stdev(y):.2f} n={len(y)})')
+        d_value = cohens_d(x, y)
+        if abs(d_value) >= 0.2:
+            print(f'  {a[0]}/{a[1]} vs {b[0]}/{b[1]}: d = {cohens_d(x, y):.4f}  '
+                f'(M1={mean(x):.2f}±{stdev(x):.2f} n={len(x)}, '
+                f'M2={mean(y):.2f}±{stdev(y):.2f} n={len(y)})')
