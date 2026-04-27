@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from bs4 import BeautifulSoup
 import requests, csv, time, re
 from config import config
@@ -6,71 +8,30 @@ from compareAlgorithms.tfidf import get_tfidf_filtered
 from compareAlgorithms.sbert import get_sbert_embeddings
 
 def query(q):
-    return requests.post(
-        'https://api.github.com/graphql',
-        json = {'query': q},
-        headers={
-            'Authorization': f'bearer {config["GITHUB"]["TOKEN"]}'
-        }
-    ).json()
+    try:
+        r = requests.post(
+            'https://api.github.com/graphql',
+            json = {'query': q},
+            headers={
+                'Authorization': f'bearer {config["GITHUB"]["TOKEN"]}'
+            }
+        )
+        return r.json()
+    except Exception as e:
+        print("Error querying github:", e)
+        if r:
+            print(r.status_code, r.text)
+        print("Waiting 10s trying to fix")
+        time.sleep(10)
+        return query(q)
 
-def get_closed_issue_with_linked_pr(owner, repo, date='2000-01-01T00:00:00Z', first = 49):
-    # tem um outro jeito de achar o pr que fechou a issue por meio do evento closed e olhar no campo state-reason se for completed tem como achar o pr
-    buildQuery = lambda date: f'''
+def get_closed_issue_with_linked_pr(owner, repo, cursor=None, date='2000-01-01T00:00:00Z', first = 49):
+    def buildQuery(cursor, date):
+        after = f', after: "{cursor}"' if cursor else ''
+        dateFilter = f' created:>{date}' if date else ''
+        return f'''
     query {{
-        search(query: "repo:{owner}/{repo} is:issue state:closed linked:pr created:>{date} sort:created-asc", type: ISSUE, first: {first}) {{
-        edges {{
-            node {{
-            ... on Issue {{
-                number
-                state
-                title
-                body
-                labels(first: 100) {{
-                    nodes {{
-                        name
-                    }}
-                }}
-                closedAt
-                createdAt
-                timelineItems(first: 100) {{
-                    nodes {{
-                        ... on CrossReferencedEvent {{
-                            willCloseTarget
-                            source {{
-                                ... on PullRequest {{
-                                    number
-                                    title
-                                    state
-                                    createdAt
-                                    closedAt
-                                    mergedAt
-                                    files(first: 100) {{
-                                        nodes {{
-                                        ... on PullRequestChangedFile {{
-                                            path
-                                        }}
-                                        }}
-                                    }}
-                                }}
-                            }}
-                        }}
-                    }}
-                }}
-            }}
-            }}
-        }}
-        }}
-        rateLimit {{
-            cost
-            remaining
-            resetAt
-        }}
-    }}'''
-    ## QUERY NOVA QUE PEGA SO O EVENTO DE FECHAMENTO
-    buildQuery = lambda date: f'''
-    query {{
-        search(query: "repo:{owner}/{repo} is:issue state:closed linked:pr created:>{date} sort:created-asc", type: ISSUE, first: {first}) {{
+        search(query: "repo:{owner}/{repo} is:issue state:closed linked:pr{dateFilter} sort:created-asc", type: ISSUE, first: {first}{after}) {{
         edges {{
             node {{
             ... on Issue {{
@@ -112,6 +73,10 @@ def get_closed_issue_with_linked_pr(owner, repo, date='2000-01-01T00:00:00Z', fi
             }}
             }}
         }}
+        pageInfo {{
+            endCursor
+            hasNextPage
+        }}
         }}
         rateLimit {{
             cost
@@ -120,14 +85,14 @@ def get_closed_issue_with_linked_pr(owner, repo, date='2000-01-01T00:00:00Z', fi
         }}
     }}'''
     # print(q)
-    result = query(buildQuery(date))
+    result = query(buildQuery(cursor, date))
     try:
         if "errors" in result and len(result['errors']):
             print("Got error:", result['errors'] )
             print("Waiting 10s trying to fix")
             time.sleep(10)
-            return get_closed_issue_with_linked_pr(owner, repo, date, first)
-        return result['data']['search']['edges']
+            return get_closed_issue_with_linked_pr(owner, repo, cursor=cursor, date=date, first=first)
+        return result['data']['search']['edges'], result['data']['search']['pageInfo'], result['data']['rateLimit']
     except Exception as e:
         print("err:", result)
         raise e
@@ -168,13 +133,23 @@ def clean_up(setLowercase, removeLinks, removeDigits, removeStopWords):
 
 def get_issues(owner, repo, date='2000-01-01T00:00:00Z', setLowercase=False, removeLinks=False, removeDigits=False, removeStopWords=False):
     issues = []
-    lastFetch = -1
-    while lastFetch:
-        date = date if not len(issues) else issues[-1]['node']['createdAt']
-        print(date, len(issues))
-        issueList = get_closed_issue_with_linked_pr(owner, repo, date)
+    cursor = None
+    hasNextPage = True
+    while hasNextPage:
+        print(date, cursor, len(issues))
+        start = time.time()
+        issueList, pageInfo, rateLimit = get_closed_issue_with_linked_pr(owner, repo, cursor=cursor, date=date)
+        elapsed = time.time() - start
+        
+        cost = rateLimit['cost']
+        hourlyUsageRate = cost / 5000
+        timeout = max(0, 3600 * hourlyUsageRate - elapsed)
+        print("Sleeping for", timeout, "seconds to avoid hitting the rate limit")
+        print("Sleeping for", timeout, "seconds to avoid hitting the rate limit")
+        # time.sleep(timeout)
         issues.extend(issueList)
-        lastFetch = len(issueList)
+        cursor = pageInfo["endCursor"]
+        hasNextPage = pageInfo["hasNextPage"] and len(issueList) > 0
     return list(map(clean_up(setLowercase, removeLinks, removeDigits, removeStopWords), issues))
 
 def get_projects(first=100, language='javascript'):

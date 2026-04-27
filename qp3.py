@@ -14,6 +14,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
+import scikit_posthocs as sp
 from sentence_transformers import SentenceTransformer, util
 from tqdm import tqdm
 from statistics import mean, stdev
@@ -152,6 +153,7 @@ df['tecnica'] = df['tecnica'].replace({
 
 df['model'] = df['model'].replace({
     'gpt-oss:120b': 'gpt-oss:120b_high',
+    'qwen3.6:35b': 'qwen3.6:35b_on',
 })
 
 # df['similarity'] *= 100  # Convert to percentage
@@ -184,7 +186,7 @@ for tecnica in df['tecnica'].unique():
     tec_df = df[df['tecnica'] == tecnica]
     agg = tec_df.groupby('model')['similarity'].agg(['min', 'mean', 'max']).reset_index()
     for _, row in agg.iterrows():
-        rows.append((tecnica, row['model'], f"{row['min']:.4f}", f"{row['mean']:.4f}", f"{row['max']:.4f}"))
+        rows.append((tecnica, row['model'], f"'{row['min']:.4f}", f"'{row['mean']:.4f}", f"'{row['max']:.4f}"))
 
 import csv, io
 buf = io.StringIO()
@@ -194,6 +196,20 @@ print(buf.getvalue())
 
 def cohens_d(c0, c1):
     return (mean(c0) - mean(c1)) / (sqrt((stdev(c0) ** 2 + stdev(c1) ** 2) / 2))
+
+
+def run_dunn(groups: dict, p_adjust='bonferroni'):
+    labels = list(groups.keys())
+    result = sp.posthoc_dunn(list(groups.values()), p_adjust=p_adjust)
+    result.index = labels
+    result.columns = labels
+    print(f'  --- Dunn post-hoc (p_adjust={p_adjust}) ---')
+    for i, a in enumerate(labels):
+        for b in labels[i + 1:]:
+            p = result.loc[a, b]
+            sig = '***' if p < 0.001 else ('**' if p < 0.01 else ('*' if p < 0.05 else 'ns'))
+            if sig != 'ns':
+                print(f'  {a} vs {b}: p = {p:.4f} {sig}')
 
 
 for model in sorted(df['model'].unique()):
@@ -210,7 +226,10 @@ for model in sorted(df['model'].unique()):
         continue
 
     print('  --- Kruskal-Wallis (across tecnicas) ---')
-    print(f'  {stats.kruskal(*testes.values())}')
+    kw = stats.kruskal(*testes.values())
+    print(f'  {kw}')
+    if kw.pvalue < 0.05:
+        run_dunn(testes)
 
     print("  --- Cohen's d (pairwise across tecnicas) ---")
     labels = list(testes.keys())
@@ -231,7 +250,10 @@ for tecnica in sorted(df['tecnica'].unique()):
     if len(model_groups) < 2:
         continue
     print(f'\n  --- {tecnica} ---')
-    print(f'  Kruskal-Wallis: {stats.kruskal(*model_groups.values())}')
+    kw = stats.kruskal(*model_groups.values())
+    print(f'  Kruskal-Wallis: {kw}')
+    if kw.pvalue < 0.05:
+        run_dunn(model_groups)
     ms = list(model_groups.keys())
     for i, a in enumerate(ms):
         for b in ms[i + 1:]:
@@ -251,8 +273,7 @@ for i, a in enumerate(combos):
         x, y = combo_groups[a], combo_groups[b]
         if len(x) < 2 or len(y) < 2:
             continue
-        d_value = cohens_d(x, y)
-        if abs(d_value) >= 0.2:
-            print(f'  {a[0]}/{a[1]} vs {b[0]}/{b[1]}: d = {cohens_d(x, y):.4f}  '
-                f'(M1={mean(x):.2f}±{stdev(x):.2f} n={len(x)}, '
-                f'M2={mean(y):.2f}±{stdev(y):.2f} n={len(y)})')
+
+        print(f'  {a[0]}/{a[1]} vs {b[0]}/{b[1]}: d = {cohens_d(x, y):.4f}  '
+            f'(M1={mean(x):.2f}±{stdev(x):.2f} n={len(x)}, '
+            f'M2={mean(y):.2f}±{stdev(y):.2f} n={len(y)}) {"<- check EFFECT SIZE" if abs(cohens_d(x, y)) >= 0.2 else ""}')

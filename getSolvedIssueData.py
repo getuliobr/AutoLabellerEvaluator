@@ -17,3 +17,5 @@ def getSolvedIssues(owner, repo, pb, label, dbCollection: Collection, closedDate
     },{"$set": {
       el: issue[el] for el in issue
     }}, upsert=True)
+  print("Done fetching and inserting issues")
+  label.config(text=f"Done fetching and inserting issues")
