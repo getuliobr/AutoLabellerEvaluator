@@ -304,8 +304,9 @@ class EvalutorWindow:
         for useK in k:
             self.saveResult(corpus, currIssue, ordered, useK, currSolvedBy)
     
-    def saveResult(self, corpus, currIssue, ordered, useK, currSolvedBy):      
-        gfi = 1 if self.goodFirstIssueTagName.get() in corpus[currIssue]['labels'] else 0
+    def saveResult(self, corpus, currIssue, ordered, useK, currSolvedBy):
+        lowerCaseLabels = list(map(lambda x: x.lower(), corpus[currIssue]['labels']))
+        gfi = 1 if self.goodFirstIssueTagName.get().lower() in lowerCaseLabels else 0
         
         output = {
             'data': corpus[currIssue]['closed_at'],
