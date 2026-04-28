@@ -213,7 +213,7 @@ class EvalutorWindow:
         threads = []
         for issue in allIssuesCursor:
             # TODO: adicionar checkbox para remover ja calculadas
-            gfi = 1 if self.goodFirstIssueTagName.get() in issue['labels'] else 0
+            gfi = 1 if self.goodFirstIssueTagName.get().lower() in [label.lower() for label in issue['labels']] else 0
             filtros = {
                 'number': issue['number'],
                 'compare': self.compare.get(),

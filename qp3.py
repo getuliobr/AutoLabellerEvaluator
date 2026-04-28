@@ -30,7 +30,7 @@ REPOS = {
   'dotnet/efcore': 'c_sharp',
   'dotnet/runtime': 'c_sharp',
   'files-community/Files': 'c_sharp',
-  'apple/swift': 'cpp',
+  'swiftlang/swift': 'cpp',
   'azerothcore/azerothcore-wotlk': 'cpp',
   'CleverRaven/Cataclysm-DDA': 'cpp',
   'godotengine/godot': 'cpp',

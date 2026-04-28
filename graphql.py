@@ -32,6 +32,7 @@ def get_closed_issue_with_linked_pr(owner, repo, cursor=None, date='2000-01-01T0
         return f'''
     query {{
         search(query: "repo:{owner}/{repo} is:issue state:closed linked:pr{dateFilter} sort:created-asc", type: ISSUE, first: {first}{after}) {{
+        issueCount
         edges {{
             node {{
             ... on Issue {{
@@ -92,7 +93,7 @@ def get_closed_issue_with_linked_pr(owner, repo, cursor=None, date='2000-01-01T0
             print("Waiting 10s trying to fix")
             time.sleep(10)
             return get_closed_issue_with_linked_pr(owner, repo, cursor=cursor, date=date, first=first)
-        return result['data']['search']['edges'], result['data']['search']['pageInfo'], result['data']['rateLimit']
+        return result['data']['search']['edges'], result['data']['search']['pageInfo'], result['data']['search']['issueCount'], result['data']['rateLimit']
     except Exception as e:
         print("err:", result)
         raise e
@@ -131,25 +132,45 @@ def clean_up(setLowercase, removeLinks, removeDigits, removeStopWords):
         return issue
     return wrapped
 
-def get_issues(owner, repo, date='2000-01-01T00:00:00Z', setLowercase=False, removeLinks=False, removeDigits=False, removeStopWords=False):
+def get_issues(owner, repo, pb, label, date='2000-01-01T00:00:00Z', setLowercase=False, removeLinks=False, removeDigits=False, removeStopWords=False):
     issues = []
     cursor = None
-    hasNextPage = True
-    while hasNextPage:
-        print(date, cursor, len(issues))
+    total = None
+    while True:
+        print(date if len(issues) == 0 else issues[-1]["node"]["createdAt"], cursor, len(issues))
         start = time.time()
-        issueList, pageInfo, rateLimit = get_closed_issue_with_linked_pr(owner, repo, cursor=cursor, date=date)
+        issueList, pageInfo, issueCount, rateLimit = get_closed_issue_with_linked_pr(owner, repo, cursor=cursor, date=date)
         elapsed = time.time() - start
-        
+        label.config(text=f"Window has {issueCount} issues ({len(issues) + len(issueList)}{'' if total is None else f'/{total}'})")
+        if total is None:
+            total = issueCount
+
         cost = rateLimit['cost']
         hourlyUsageRate = cost / 5000
         timeout = max(0, 3600 * hourlyUsageRate - elapsed)
         print("Sleeping for", timeout, "seconds to avoid hitting the rate limit")
-        print("Sleeping for", timeout, "seconds to avoid hitting the rate limit")
         # time.sleep(timeout)
         issues.extend(issueList)
-        cursor = pageInfo["endCursor"]
-        hasNextPage = pageInfo["hasNextPage"] and len(issueList) > 0
+
+        if total:
+            percentage = len(issues)/total * 100
+            pb['value'] = percentage if percentage <= 100 else 100 # in case a issue gets closed right when we are running and we end up with more issues than the initial total
+
+        if pageInfo["hasNextPage"]:
+            cursor = pageInfo["endCursor"]
+            continue
+
+        if not issueList:
+            print("No more pages, done fetching issues")
+            break
+
+        last_created_at = issueList[-1]["node"]["createdAt"]
+        if last_created_at == date:
+            print("No progress on date window, done fetching issues")
+            break
+        print(f"Hit pagination end ({len(issueList)} in last page) — restarting from created:>{last_created_at}")
+        date = last_created_at
+        cursor = None
     return list(map(clean_up(setLowercase, removeLinks, removeDigits, removeStopWords), issues))
 
 def get_projects(first=100, language='javascript'):
