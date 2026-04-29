@@ -29,6 +29,8 @@ INPUT_FILE = 'ollama_output.jsonl'
 BATCH_SIZE = 500
 LOG_EVERY = 1000
 
+IS_2026_RUN = True
+
 mongoClient = pymongo.MongoClient(config['DATABASE']['CONNECTION_STRING'])
 db = mongoClient[config['DATABASE']['NAME']]
 
@@ -72,6 +74,7 @@ def main():
                 continue
 
             repo = rec['repo']
+            # rec['model'] = f'{rec["model"]}_medium'
             doc = {
                 'number': rec['number'],
                 'model': rec['model'],
@@ -79,7 +82,9 @@ def main():
                 'few_shot': rec['few_shot'],
                 'tecnica': rec['tecnica'],
                 'topk': rec['topk'],
+                'is_2026_run': IS_2026_RUN,
                 'days_before': rec['days_before'],
+                'metadata': rec.get('metadata', {}),
             }
             key = {
                 'number': rec['number'],

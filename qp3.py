@@ -22,6 +22,8 @@ from math import sqrt, isnan
 
 from github_diff import get_diff
 
+IS_2026_RUN = False  # Set to True to only include issues created in 2026 or later (for the 2026 run)
+
 mongoClient = pymongo.MongoClient(config['DATABASE']['CONNECTION_STRING'])
 db = mongoClient[config['DATABASE']['NAME']]
 
@@ -80,6 +82,9 @@ SKIP_ISSUES = {
     ('mattermost/mattermost', 21162),   # err couldnt find pr
     ('mattermost/mattermost', 15455),   # err couldnt find pr
     ('mattermost/mattermost', 23427),   # err couldnt find pr
+    # Those errors bellow happened on the 2026 run
+    ('apache/airflow', 62088),          # err when generating on gpt5.2 (too many tokens)
+    ('apache/airflow', 61920),          # err when generating on gpt5.2 (too many tokens)
 }
 
 print('Loading all-MiniLM-L6-v2...')
@@ -98,7 +103,10 @@ for repo in REPOS:
     simResultsCollection = db[f'{repo}_sbert_sim_results']
 
     for tecnica in TECNICAS:
-        docs = list(aiResultsCollection.find({'tecnica': tecnica}))
+        docs = list(aiResultsCollection.find({
+            'tecnica': tecnica,
+            'is_2026_run': IS_2026_RUN
+        }))
         if not docs:
             continue
 

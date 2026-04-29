@@ -10,7 +10,6 @@ Usage:
 Each sampled issue gets three requests in the same batch: zeroshot, sbert top-1 @180d, tfidf top-1 @180d.
 The batch ID is persisted in batch_state.json between steps.
 """
-
 from config import config
 import pymongo
 import json
@@ -102,6 +101,8 @@ def get_suggestion(repo, number, tecnica='sbert', topk=1, days_before=180):
     suggestions = []
     failure_reasons = []
     for suggestion_number, _similarity in issue['issues_sugeridas']:
+        if repo == 'nextcloud/server' and int(suggestion_number) == 55988:
+            return [], 'suggestion is nextcloud/server#55988, which has an unfetchably large diff (138.4 MB)' 
         diff_list, errors = get_diff(repo, suggestion_number, db)
         if errors:
             err_msg = '; '.join(f'PR#{p}: {r}' for p, r in errors)
@@ -240,7 +241,7 @@ def compute_sample_size(N, confidence=0.95, margin=0.05, p=0.5):
     return math.ceil(n)
 
 
-def submit(dry_run=False):
+def submit(dry_run=False, is_2026_run=False):
     """Build the JSONL input file for all three scenarios, upload it, and create a batch.
     Uses stratified random sampling (proportional allocation) to select a statistically
     representative subset of issues at 95% confidence / 5% margin, then emits one request
@@ -256,9 +257,12 @@ def submit(dry_run=False):
         filtro = {
             "filtros.goodFirstIssue": 1,
             "topk": 1,
-            "filtros.daysBefore": 30,
-            "tecnica": "sbert"
+            "filtros.daysBefore": 180,
+            "tecnica": "sbert",
         }
+        
+        if is_2026_run:
+            filtro['data'] = {'$gte': '2026-01-01'}
 
         repo_issues = []
 
@@ -267,11 +271,14 @@ def submit(dry_run=False):
                                total=resultsCollection.count_documents(filtro),
                                desc=f'Preparing {repo}'):
                 number = result['number']
+                
+                gte = '2026-01-01' if is_2026_run else '2020-07-01'
+                lte = '2026-03-31' if is_2026_run else '2024-01-31'
 
                 issue = issueCollection.find_one({
                   'number': number,
-                  'created_at': {'$gte': '2020-07-01'},
-                  'closed_at': {'$lte': '2024-01-31'},
+                  'created_at': {'$gte': gte},
+                  'closed_at': {'$lte': lte},
                 })
 
                 if not issue:
@@ -292,30 +299,34 @@ def submit(dry_run=False):
     if total_population == 0:
         print("No eligible issues to submit.")
         return
-
-    sample_size = compute_sample_size(total_population)  # 95% CI, 5% margin
-
-    print(f'\nPopulation: {total_population} issues across {len(issues_by_repo)} projects')
-    print(f'Sample size (95% confidence, 5% margin): {sample_size}')
-    print(f'Scenarios per issue: {len(SCENARIOS)}')
-    print(f'\n{"Project":<50} {"Population":>10} {"Sample":>8}')
-    print('-' * 70)
-
+    
     sampled_issues = []  # list of (repo, issue) tuples
+    if not is_2026_run:
+        sample_size = compute_sample_size(total_population)  # 95% CI, 5% margin
 
-    for repo, repo_issues in issues_by_repo.items():
-        stratum_size = len(repo_issues)
-        # proportional allocation: nh = n * (Nh / N), at least 1
-        nh = max(1, round(sample_size * stratum_size / total_population))
-        nh = min(nh, stratum_size)
-        random.seed(42)  # reproducible sampling per stratum
-        sample_idx = random.sample(range(stratum_size), nh)
-        sampled_issues.extend((repo, repo_issues[i]) for i in sample_idx)
-        print(f'{repo:<50} {stratum_size:>10} {nh:>8}')
+        print(f'\nPopulation: {total_population} issues across {len(issues_by_repo)} projects')
+        print(f'Sample size (95% confidence, 5% margin): {sample_size}')
+        print(f'Scenarios per issue: {len(SCENARIOS)}')
+        print(f'\n{"Project":<50} {"Population":>10} {"Sample":>8}')
+        print('-' * 70)
+
+        # only sample if its not
+        for repo, repo_issues in issues_by_repo.items():
+            stratum_size = len(repo_issues)
+            # proportional allocation: nh = n * (Nh / N), at least 1
+            nh = max(1, round(sample_size * stratum_size / total_population))
+            nh = min(nh, stratum_size)
+            random.seed(42)  # reproducible sampling per stratum
+            sample_idx = random.sample(range(stratum_size), nh)
+            sampled_issues.extend((repo, repo_issues[i]) for i in sample_idx)
+            print(f'{repo:<50} {stratum_size:>10} {nh:>8}')
+    else:
+        for repo, repo_issues in issues_by_repo.items():
+            for issue in repo_issues:
+                sampled_issues.append((repo, issue))
     
     with open('sampled_issues.json', 'w', encoding='utf-8') as f:
         json.dump(sampled_issues, f, indent=2)
-    return
 
     print('-' * 70)
     sampled_count = len(sampled_issues)
@@ -426,7 +437,7 @@ def status(batch_id=None):
                 print(f'      error: {err.message}')
 
 
-def _save_results_to_mongo(content):
+def _save_results_to_mongo(content, is_2026_run=False):
     """Parse a batch output JSONL and upsert each response into {repo}_ai_results."""
     saved = 0
     errors = 0
@@ -451,16 +462,16 @@ def _save_results_to_mongo(content):
         ai_response = result['response']['body']['choices'][0]['message']['content']
         db[f'{repo}_ai_results'].update_one({
             'number': number, 'model': MODEL, 'few_shot': few_shot,
-            'tecnica': tecnica, 'topk': topk, 'days_before': days_before,
+            'tecnica': tecnica, 'topk': topk, 'days_before': days_before, 'is_2026_run': is_2026_run,
         }, {'$set': {
             'number': number, 'model': MODEL, 'response': ai_response,
-            'few_shot': few_shot, 'tecnica': tecnica, 'topk': topk, 'days_before': days_before,
+            'few_shot': few_shot, 'tecnica': tecnica, 'topk': topk, 'days_before': days_before, 'is_2026_run': is_2026_run,
         }}, upsert=True)
         saved += 1
     return saved, errors
 
 
-def retrieve(batch_id=None):
+def retrieve(batch_id=None, is_2026_run=False):
     """Download the current chunk's results, save them, then auto-submit the next chunk."""
     if batch_id:
         # One-off: download a specific batch ID without touching state.
@@ -469,7 +480,7 @@ def retrieve(batch_id=None):
             print(f'Batch status is "{batch.status}", not "completed".')
             return
         content = client.files.content(batch.output_file_id).text
-        saved, errors = _save_results_to_mongo(content)
+        saved, errors = _save_results_to_mongo(content, is_2026_run)
         print(f'\nDone! Saved {saved} results, {errors} errors.')
         return
 
@@ -495,7 +506,7 @@ def retrieve(batch_id=None):
 
     print(f'Chunk {idx}: downloading output file {batch.output_file_id}...')
     content = client.files.content(batch.output_file_id).text
-    saved, errors = _save_results_to_mongo(content)
+    saved, errors = _save_results_to_mongo(content, is_2026_run)
     print(f'Chunk {idx}: saved {saved} results, {errors} errors.')
 
     next_idx = idx + 1
@@ -529,12 +540,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='OpenAI Batch API for GPT code evaluation')
     parser.add_argument('command', choices=['submit', 'status', 'retrieve'])
     parser.add_argument('--dry-run', action='store_true', help='Write JSONL only; skip upload and batch creation (submit only)')
+    parser.add_argument('--is-2026-run', action='store_true', help='Only include issues created in 2026 or later (submit only)')
     parser.add_argument('--batch-id', type=str, required=False, help='Batch ID for status/retrieve')
     args = parser.parse_args()
 
     if args.command == 'submit':
-        submit(dry_run=args.dry_run)
+        submit(dry_run=args.dry_run, is_2026_run=args.is_2026_run)
     elif args.command == 'status':
         status(batch_id=args.batch_id)
     elif args.command == 'retrieve':
-        retrieve(batch_id=args.batch_id)
+        retrieve(batch_id=args.batch_id, is_2026_run=args.is_2026_run)
