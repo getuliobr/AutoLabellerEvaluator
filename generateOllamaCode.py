@@ -13,7 +13,11 @@ import json
 import os
 import sys
 
+from datetime import datetime
+
+from ollama import Client
 from openai import OpenAI
+
 from tqdm import tqdm
 
 logging.basicConfig(
@@ -24,10 +28,13 @@ logging.basicConfig(
 )
 log = logging.getLogger('generateOllamaCode')
 
+'''
 client = OpenAI(
   api_key='ollama',
   base_url=config['OLLAMA']['BASE_URL'] + '/v1'
 )
+'''
+client = Client(host=config['OLLAMA']['BASE_URL'])
 
 GEN_COUNT = 1
 MODEL = config['OLLAMA']['MODEL']
@@ -113,15 +120,27 @@ def main():
             for i in range(GEN_COUNT):
                 if (custom_id, i) in processed:
                     continue
-
+                '''
                 response = client.chat.completions.create(
                     model=MODEL,
                     temperature=0.7,
                     messages=messages,
-                    extra_body={'think': True}
-                )
+                    extra_body={'think': False}
+                }
 
                 ai_response = response.choices[0].message.content
+                '''
+
+                response = client.chat(
+                    model=MODEL,
+                    think=True,
+                    options={'temperature': 0.7},
+                    messages=messages,
+                )
+              
+                print(json.dumps(response.model_dump(), ensure_ascii=False))
+
+                ai_response = response.message.content
 
                 record = {
                     'custom_id': custom_id,
@@ -134,6 +153,7 @@ def main():
                     'tecnica': tecnica,
                     'topk': topk,
                     'days_before': days_before,
+                    'metadata': json.dumps(response.model_dump(),ensure_ascii=False)
                 }
 
                 out_f.write(json.dumps(record, ensure_ascii=False) + '\n')
