@@ -14,3 +14,4 @@ seaborn==0.13.2
 sentence_transformers==5.4.0
 torch==2.9.0
 tqdm==4.67.1
+ollama==0.6.0
