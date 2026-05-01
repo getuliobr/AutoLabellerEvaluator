@@ -29,7 +29,8 @@ for projeto in db.list_collection_names():
     filtro = {
        'number': {'$gte': lower},
        'filtros.daysBefore': 180,
-       'tecnica': 'sbert'
+       'tecnica': 'sbert',
+       'data': {'$lte': '2024-01-31' },
     }
 
     resultsCollection = db[f'{projeto}_results']

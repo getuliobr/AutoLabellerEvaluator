@@ -1,5 +1,3 @@
-[![pt-br](https://img.shields.io/badge/lang-pt--br-green.svg)](./README.pt-br.md)
-
 Here contains the source code of the tool for collecting, suggesting and results of GitHub issues.
 
 In the dataset provided, we provide the data used for the development of our research, such as the issues from the 35 repositories mined, with the pull requests and files that closed the issues.
@@ -35,7 +33,7 @@ We used qwen3.6:35b and gpt-oss:120b (high, medium) to generate code diffs used 
 
 # Installing the dataset
 
-With MongoDB running and the configuration file filled out, simply run the command `./loadBackup.sh`.
+With MongoDB running and the configuration file filled out, use `mongorecover` with the `dataset.gz` to be able to run the evaluation scripts.
 
 # Installing dependencies
 
@@ -98,4 +96,4 @@ To obtain the results of QP1 and QP2, run the script: `python3 qp12.py`. If you 
 
 ### RQ3
 
-Just run the command `python3 qp3.py`.
+Just run the command `python3 qp3.py`, change the value of `IS_2026_RUN`: `False` for pre 2026 issues, and `True` for issues created and closed >= `2026-01-01`.
