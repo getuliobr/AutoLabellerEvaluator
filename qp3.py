@@ -22,7 +22,7 @@ from math import sqrt, isnan
 
 from github_diff import get_diff
 
-IS_2026_RUN = False  # Set to True to only include issues created in 2026 or later (for the 2026 run)
+IS_2026_RUN = True  # Set to True to only include issues created in 2026 or later (for the 2026 run)
 
 mongoClient = pymongo.MongoClient(config['DATABASE']['CONNECTION_STRING'])
 db = mongoClient[config['DATABASE']['NAME']]
@@ -131,6 +131,7 @@ for repo in REPOS:
             }, {
                 '$set': {
                     'similarity': sim,
+                    'is_2026_run': IS_2026_RUN
                 }
             }, upsert=True)
 
@@ -138,7 +139,7 @@ for repo in REPOS:
 all_dfs = []
 for repo in REPOS:
     simResultsCollection = db[f'{repo}_sbert_sim_results']
-    docs = list(simResultsCollection.find({}, {'_id': 0}))
+    docs = list(simResultsCollection.find({'is_2026_run': IS_2026_RUN}, {'_id': 0}))
     if docs:
         repo_df = pd.DataFrame(docs)
         repo_df['repo'] = repo
@@ -180,8 +181,8 @@ ax = sns.boxplot(
 ax.set_xlabel('Technique')
 ax.set_ylabel('Cosine Similarity') 
 plt.tight_layout()
-plt.savefig('artigo/boxplot_sbert.pdf')
-print('\nSaved artigo/boxplot_sbert.pdf')
+plt.savefig('paper/boxplot.pdf')
+print('\nSaved paper/boxplot.pdf')
 plt.show()
 
 # --- Phase 4: Statistics ---

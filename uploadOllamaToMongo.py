@@ -74,7 +74,7 @@ def main():
                 continue
 
             repo = rec['repo']
-            # rec['model'] = f'{rec["model"]}_medium'
+            # rec['model'] = f'{rec["model"]}_off'
             doc = {
                 'number': rec['number'],
                 'model': rec['model'],
